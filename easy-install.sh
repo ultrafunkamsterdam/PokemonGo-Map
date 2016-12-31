@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 #
+# for even easier installation: copy-paste this line in your terminal (not the damn hash of course):
+#  wget https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/develop/easy-install.sh && sudo chmod 755 easy-install.sh && bash ./easy-install.sh
+#
 # >>>  Created and tested on Ubuntu 16.04 64-bits <<<
 #
 # This script installs PokemonGo-Maps including the Hash-server configuration.
