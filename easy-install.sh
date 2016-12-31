@@ -44,7 +44,7 @@ CREDITS="ULTRAFUNKAMSTERDAM"
 	[[ ! -z "$INSTALLDIR" ]] && mkdir $INSTALLDIR || INSTALLDIR=/home/$USER/PokemonGo-Maps
 	echo -e "\n\n\nENTER YOUR HASH SERVER API KEY";
 	read -p 'API KEY :' HASHAPIKEY
-	echo -e -n "\n\nStaring installation" && for i in {10..30};do echo -e -n "." ;((i++));sleep 0.1;done
+	echo -e -n "\n\nStarting installation" && for i in {10..30};do echo -e -n "." ;((i++));sleep 0.1;done
 	clear
 
 
@@ -64,7 +64,7 @@ awk -v n=499 -v s="\t\tapi.activate_hash_server('$HASHAPIKEY')" 'NR == n {print 
 npm install && grunt build
 deactivate
 clear 
-echo -e -n "\n\n\nINSTALLATION FINISHED ! Another quasi-brilliant script, exlusively brought to you by:\n\n\t" && for i in {0..17}; do echo -e -n  "${CREDITS:i:1} " ;((i++));sleep 0.18; done  
+echo -e -n "\n\n\nINSTALLATION FINISHED ! Another script containing more fancyness than usable code, exlusively brought to you by:\n\n\t" && for i in {0..17}; do echo -e -n  "${CREDITS:i:1} " ;((i++));sleep 0.18; done  
 echo -e "\n\n\nIMPORTANT!! : Don't forget to activate virtualenv before running runserver.py\nThis can be done by cd'ing into $INSTALLDIR and run:   . bin/activate   (DON'T FORGET THE DAMN DOT)\n\n\nOh, and when done, you can deactivate it anytime by just typing:  deactivate \n\n\nHAPPY CATCHING MOFO'S !! AND AH AH AHAH STAYING ALIVE!\n\n"
 sleep 20
 
