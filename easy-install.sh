@@ -40,7 +40,7 @@ CREDITS="ULTRAFUNKAMSTERDAM"
 	clear
 	echo -e "\n\n\n====POKEMON GO MAPS SETUP ====\n\n\n"
 	echo -e "Enter desired installation directory and make sure you have non-root access to that folder.\nJust press ENTER to install to /home/$USER/PokemonGo-Maps\n\n"
-	read -p 'INSTALL DIR - FULL PATH ( default /home/\'$USER\'/PokemonGo-Maps/ )  :' INSTALLDIR
+	read -p 'INSTALL DIR - FULL PATH ( default /home/'$USER'/PokemonGo-Maps )  :' INSTALLDIR
 	[[ ! -z "$INSTALLDIR" ]] && mkdir $INSTALLDIR || INSTALLDIR=/home/$USER/PokemonGo-Maps
 	echo -e "\n\n\nENTER YOUR HASH SERVER API KEY";
 	read -p 'API KEY :' HASHAPIKEY
