@@ -60,7 +60,7 @@ virtualEnv || { echo 'you need to install virtualenv for this to work (sudo apt-
 git checkout develop #just to be sure
 pip install -r requirements.txt --upgrade
 git submodule init && git submodule update
-awk -v n=499 -v s="\t\tapi.activate_hash_server('$HASHAPIKEY')" 'NR == n {print s} {print}' pogom/search.py > search.tmp && mv search.tmp pogom/search.py
+awk -v n=507 -v s="\t\t\t\tapi.activate_hash_server('$HASHAPIKEY')" 'NR == n {print s} {print}' pogom/search.py > search.tmp && mv search.tmp pogom/search.py
 npm install && grunt build
 deactivate
 clear 
