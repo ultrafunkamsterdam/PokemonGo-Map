@@ -3,7 +3,7 @@ BASE_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 clear
 echo -e "\n\n\t======= This will install everything you need to run PokemonGo-Maps =======" 
 echo -e "\n\n\tYou should run this script with root privileges:  sudo bash $0"  
-echo -e "\n\n\tpress ctrl+c to cancel . I'll give you 5 seconds to copy above command to run as root" && sleep 5
+echo -e "\n\n\tpress ctrl+c to cancel . I'll give you 5 seconds to copy above command to run as sudo user" && sleep 5
 echo -e -n "\n\n\tStarting installation" && for i in {10..30};do echo -e -n "." ;((i++));sleep 0.1;done
 echo -e "\n\n\tThere we go" && sleep 1.5
 clear
