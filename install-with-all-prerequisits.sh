@@ -11,7 +11,7 @@ clear
 apt-get -y update 
 
 # NPM NODE AND LEGACY STUFF
-apt install -y nodejs nodejs-legacy nodejs npm libwww-curl libwww-perl 
+apt install -y nodejs nodejs-legacy npm libwww-curl libwww-perl 
 
 # NPM NODE MORE RECENT STUFF
 curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash -
