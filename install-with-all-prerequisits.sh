@@ -27,4 +27,9 @@ echo -e "\n\n\tDONE INSTALLING PREREQUISITS" && sleep 2
 echo -e "\n\n\tNow we are going to install PokemonGo-Map with hashing server support. You'll be prompted to enter your HASHING API key." && sleep 2
 echo -e -n "\n\n\tHERE WE GO AGAIN!" && for i in {10..30};do echo -e -n "." ;((i++));sleep 0.1;done
 
-wget https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/develop/easy-install.sh && sudo chmod 755 easy-install.sh && bash ./easy-install.sh
+
+[[ -f easy-install.sh ]] && rm easy-install.sh
+wget https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/develop/easy-install.sh
+sudo chmod 755 easy-install.sh
+bash ./easy-install.sh
+
