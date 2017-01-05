@@ -39,10 +39,10 @@ CREDITS="ULTRAFUNKAMSTERDAM"
 
 	clear
 	echo -e "\n\n\n====POKEMON GO MAPS SETUP ====\n\n\n"
-	echo -e "Enter desired installation directory and make sure you have non-root access to that folder.\nJust press ENTER to install to /home/$USER/PokemonGo-Maps\n\n"
-	echo -e "THIS IS IMPORTANT: \n" 
+	echo -e "THIS IS IMPORTANT: \n\n" 
 	echo -e "You are no longer required to type your BossLand Hashkey in here, instead use it like:"
-	echo -e "python ./runserver.py -hk YOURKEY -hk YOURKEY2 -hk YOURKEY  --> and/or (-k GMAPSKEY -l \"Mainstreet London\" -a ptc -u USERNAME -p PASSWORD .etc etc )" 
+	echo -e "python ./runserver.py -hk YOURKEY -hk YOURKEY2 -hk YOURKEY ( rest of configuration )\n"
+	echo -e "For more information about command line options please visit:\nhttps://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/blob/develop/pogom/utils.py#L54-L224 \n\n"
 	read -p 'INSTALL DIR - FULL PATH ( default /home/'$USER'/PokemonGo-Maps )  :' INSTALLDIR
 	[[ ! -z "$INSTALLDIR" ]] && mkdir $INSTALLDIR || INSTALLDIR=/home/$USER/PokemonGo-Maps
 	#echo -e "\n\n\nENTER YOUR HASH SERVER API KEY";
