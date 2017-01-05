@@ -40,10 +40,13 @@ CREDITS="ULTRAFUNKAMSTERDAM"
 	clear
 	echo -e "\n\n\n====POKEMON GO MAPS SETUP ====\n\n\n"
 	echo -e "Enter desired installation directory and make sure you have non-root access to that folder.\nJust press ENTER to install to /home/$USER/PokemonGo-Maps\n\n"
+	echo -e "THIS IS IMPORTANT: \n" 
+	echo -e "You are no longer required to type your BossLand Hashkey in here, instead use it like:"
+	echo -e "python ./runserver.py -hk YOURKEY -hk YOURKEY2 -hk YOURKEY  --> and/or (-k GMAPSKEY -l \"Mainstreet London\" -a ptc -u USERNAME -p PASSWORD .etc etc )" 
 	read -p 'INSTALL DIR - FULL PATH ( default /home/'$USER'/PokemonGo-Maps )  :' INSTALLDIR
 	[[ ! -z "$INSTALLDIR" ]] && mkdir $INSTALLDIR || INSTALLDIR=/home/$USER/PokemonGo-Maps
-	echo -e "\n\n\nENTER YOUR HASH SERVER API KEY";
-	read -p 'API KEY :' HASHAPIKEY
+	#echo -e "\n\n\nENTER YOUR HASH SERVER API KEY";
+	#read -p 'API KEY :' HASHAPIKEY
 	echo -e -n "\n\nStarting installation" && for i in {10..30};do echo -e -n "." ;((i++));sleep 0.1;done
 	clear
 
@@ -60,7 +63,7 @@ virtualEnv || { echo 'you need to install virtualenv for this to work (sudo apt-
 git checkout develop #just to be sure
 pip install -r requirements.txt --upgrade
 git submodule init && git submodule update
-awk -v n=499 -v s="\t\tapi.activate_hash_server('$HASHAPIKEY')" 'NR == n {print s} {print}' pogom/search.py > search.tmp && mv search.tmp pogom/search.py
+#awk -v n=499 -v s="\t\tapi.activate_hash_server('$HASHAPIKEY')" 'NR == n {print s} {print}' pogom/search.py > search.tmp && mv search.tmp pogom/search.py
 npm install && grunt build
 deactivate
 clear 
