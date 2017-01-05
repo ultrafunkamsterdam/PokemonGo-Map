@@ -1,194 +1,408 @@
 #!/usr/bin/python
 # -*- coding: utf-8 -*-
 
+import calendar
 import logging
-import requests
-import sys
-import time
 
-from queue import Queue
-from threading import Thread
-from random import randint
+from flask import Flask, abort, jsonify, render_template, request
+from flask.json import JSONEncoder
+from flask_compress import Compress
+from datetime import datetime
+from s2sphere import LatLng
+from pogom.utils import get_args
+from datetime import timedelta
+from collections import OrderedDict
 
+from . import config
+from .models import Pokemon, Gym, Pokestop, ScannedLocation, MainWorker, WorkerStatus
+from .utils import now
 log = logging.getLogger(__name__)
-
-# Last used proxy for round-robin.
-last_proxy = -1
-
-# Proxy check result constants.
-check_result_ok = 0
-check_result_failed = 1
-check_result_banned = 2
-check_result_wrong = 3
-check_result_timeout = 4
-check_result_exception = 5
-check_result_empty = 6
-check_result_max = 6  # Should be equal to maximal return code.
+compress = Compress()
 
 
-# Simple function to do a call to Niantic's system for testing proxy connectivity.
-def check_proxy(proxy_queue, timeout, proxies, show_warnings, check_results):
+class Pogom(Flask):
+    def __init__(self, import_name, **kwargs):
+        super(Pogom, self).__init__(import_name, **kwargs)
+        compress.init_app(self)
+        self.json_encoder = CustomJSONEncoder
+        self.route("/", methods=['GET'])(self.fullmap)
+        self.route("/raw_data", methods=['GET'])(self.raw_data)
+        self.route("/loc", methods=['GET'])(self.loc)
+        self.route("/next_loc", methods=['POST'])(self.next_loc)
+        self.route("/mobile", methods=['GET'])(self.list_pokemon)
+        self.route("/search_control", methods=['GET'])(self.get_search_control)
+        self.route("/search_control", methods=['POST'])(self.post_search_control)
+        self.route("/stats", methods=['GET'])(self.get_stats)
+        self.route("/status", methods=['GET'])(self.get_status)
+        self.route("/status", methods=['POST'])(self.post_status)
+        self.route("/gym_data", methods=['GET'])(self.get_gymdata)
 
-    # Url for proxy testing.
-    proxy_test_url = 'https://pgorelease.nianticlabs.com/plfe/rpc'
-    proxy = proxy_queue.get()
+    def set_search_control(self, control):
+        self.search_control = control
 
-    check_result = check_result_ok
+    def set_heartbeat_control(self, heartb):
+        self.heartbeat = heartb
 
-    if proxy and proxy[1]:
+    def set_location_queue(self, queue):
+        self.location_queue = queue
 
-        log.debug('Checking proxy: %s', proxy[1])
+    def set_current_location(self, location):
+        self.current_location = location
 
-        try:
-            proxy_response = requests.post(proxy_test_url, '', proxies={'http': proxy[1], 'https': proxy[1]}, timeout=timeout)
+    def get_search_control(self):
+        return jsonify({'status': not self.search_control.is_set()})
 
-            if proxy_response.status_code == 200:
-                log.debug('Proxy %s is ok.', proxy[1])
-                proxy_queue.task_done()
-                proxies.append(proxy[1])
-                check_results[check_result_ok] += 1
-                return True
-
-            elif proxy_response.status_code == 403:
-                proxy_error = "Proxy " + proxy[1] + " is banned - got status code: " + str(proxy_response.status_code)
-                check_result = check_result_banned
-
-            else:
-                proxy_error = "Wrong status code - " + str(proxy_response.status_code)
-                check_result = check_result_wrong
-
-        except requests.ConnectTimeout:
-            proxy_error = "Connection timeout (" + str(timeout) + " second(s) ) via proxy " + proxy[1]
-            check_result = check_result_timeout
-
-        except requests.ConnectionError:
-            proxy_error = "Failed to connect to proxy " + proxy[1]
-            check_result = check_result_failed
-
-        except Exception as e:
-            proxy_error = e
-            check_result = check_result_exception
-
-    else:
-        proxy_error = "Empty proxy server."
-        check_result = check_result_empty
-
-    # Decrease output amount if there are lot of proxies.
-    if show_warnings:
-        log.warning('%s', proxy_error)
-    else:
-        log.debug('%s', proxy_error)
-    proxy_queue.task_done()
-
-    check_results[check_result] += 1
-    return False
-
-
-# Check all proxies and return a working list with proxies.
-def check_proxies(args):
-
-    source_proxies = []
-
-    check_results = [0] * (check_result_max + 1)
-
-    # Load proxies from the file. Override args.proxy if specified.
-    if args.proxy_file is not None:
-        log.info('Loading proxies from file.')
-
-        with open(args.proxy_file) as f:
-            for line in f:
-                # Ignore blank lines and comment lines.
-                if len(line.strip()) == 0 or line.startswith('#'):
-                    continue
-                source_proxies.append(line.strip())
-
-        log.info('Loaded %d proxies.', len(source_proxies))
-
-        if len(source_proxies) == 0:
-            log.error('Proxy file was configured but no proxies were loaded. Aborting.')
-            sys.exit(1)
-    else:
-        source_proxies = args.proxy
-
-    # No proxies - no cookies.
-    if (source_proxies is None) or (len(source_proxies) == 0):
-        log.info('No proxies are configured.')
-        return None
-
-    if args.proxy_skip_check:
-        return source_proxies
-
-    proxy_queue = Queue()
-    total_proxies = len(source_proxies)
-
-    log.info('Checking %d proxies...', total_proxies)
-    if (total_proxies > 10):
-        log.info('Enable "-v or -vv" to see checking details.')
-
-    proxies = []
-
-    for proxy in enumerate(source_proxies):
-        proxy_queue.put(proxy)
-
-        t = Thread(target=check_proxy,
-                   name='check_proxy',
-                   args=(proxy_queue, args.proxy_timeout, proxies, total_proxies <= 10, check_results))
-        t.daemon = True
-        t.start()
-
-    # This is painful but we need to wait here until proxy_queue is completed so we have a working list of proxies.
-    proxy_queue.join()
-
-    working_proxies = len(proxies)
-
-    if working_proxies == 0:
-        log.error('Proxy was configured but no working proxies were found. Aborting.')
-        sys.exit(1)
-    else:
-        log.info('Proxy check completed. Working: %d, banned: %d, timeout: %d, other fails: %d of total %d configured.',
-                 working_proxies, check_results[check_result_banned], check_results[check_result_timeout],
-                 check_results[check_result_failed] + check_results[check_result_wrong] + check_results[check_result_exception] + check_results[check_result_empty],
-                 total_proxies)
-        return proxies
-
-
-# Thread function for periodical proxy updating.
-def proxies_refresher(args):
-
-    while True:
-        # Wait BEFORE refresh, because initial refresh is done at startup.
-        time.sleep(args.proxy_refresh)
-
-        try:
-            proxies = check_proxies(args)
-
-            if len(proxies) == 0:
-                log.warning('No live proxies found. Using previous ones until next round...')
-                continue
-
-            args.proxy = proxies
-            log.info('Regular proxy refresh complete.')
-        except Exception as e:
-            log.exception('Exception while refresh proxies: %s', e)
-
-
-# Provide new proxy for a search thread.
-def get_new_proxy(args):
-
-    global last_proxy
-
-    # If none/round - simply get next proxy.
-    if (args.proxy_rotation is None) or (args.proxy_rotation == 'none') or (args.proxy_rotation == 'round'):
-        if last_proxy >= len(args.proxy) - 1:
-            last_proxy = 0
+    def post_search_control(self):
+        args = get_args()
+        if not args.search_control or args.on_demand_timeout > 0:
+            return 'Search control is disabled', 403
+        action = request.args.get('action', 'none')
+        if action == 'on':
+            self.search_control.clear()
+            log.info('Search thread resumed')
+        elif action == 'off':
+            self.search_control.set()
+            log.info('Search thread paused')
         else:
-            last_proxy = last_proxy + 1
-        lp = last_proxy
-    # If random - get random one.
-    elif (args.proxy_rotation == 'random'):
-        lp = randint(0, len(args.proxy) - 1)
-    else:
-        log.warning('Parameter -pxo/--proxy-rotation has wrong value. Use only first proxy.')
-        lp = 0
+            return jsonify({'message': 'invalid use of api'})
+        return self.get_search_control()
 
-    return lp, args.proxy[lp]
+    def fullmap(self):
+        self.heartbeat[0] = now()
+        args = get_args()
+        if args.on_demand_timeout > 0:
+            self.search_control.clear()
+        fixed_display = "none" if args.fixed_location else "inline"
+        search_display = "inline" if args.search_control and args.on_demand_timeout <= 0 else "none"
+        scan_display = "none" if (args.only_server or args.fixed_location or args.spawnpoint_scanning) else "inline"
+
+        map_lat = self.current_location[0]
+        map_lng = self.current_location[1]
+        if request.args:
+            map_lat = request.args.get('lat') or self.current_location[0]
+            map_lng = request.args.get('lon') or self.current_location[1]
+
+        return render_template('map.html',
+                               lat=map_lat,
+                               lng=map_lng,
+                               gmaps_key=config['GMAPS_KEY'],
+                               lang=config['LOCALE'],
+                               is_fixed=fixed_display,
+                               search_control=search_display,
+                               show_scan=scan_display
+                               )
+
+    def raw_data(self):
+        self.heartbeat[0] = now()
+        args = get_args()
+        if args.on_demand_timeout > 0:
+            self.search_control.clear()
+        d = {}
+
+        # Request time of this request.
+        d['timestamp'] = datetime.utcnow()
+
+        # Request time of previous request.
+        if request.args.get('timestamp'):
+            timestamp = int(request.args.get('timestamp'))
+            timestamp -= 1000  # Overlap, for rounding errors.
+        else:
+            timestamp = 0
+
+        swLat = request.args.get('swLat')
+        swLng = request.args.get('swLng')
+        neLat = request.args.get('neLat')
+        neLng = request.args.get('neLng')
+
+        oSwLat = request.args.get('oSwLat')
+        oSwLng = request.args.get('oSwLng')
+        oNeLat = request.args.get('oNeLat')
+        oNeLng = request.args.get('oNeLng')
+
+        # Previous switch settings.
+        lastgyms = request.args.get('lastgyms')
+        lastpokestops = request.args.get('lastpokestops')
+        lastpokemon = request.args.get('lastpokemon')
+        lastslocs = request.args.get('lastslocs')
+        lastspawns = request.args.get('lastspawns')
+
+        if request.args.get('luredonly', 'true') == 'true':
+            luredonly = True
+        else:
+            luredonly = False
+
+        # Current switch settings saved for next request.
+        if request.args.get('gyms', 'true') == 'true':
+            d['lastgyms'] = request.args.get('gyms', 'true')
+
+        if request.args.get('pokestops', 'true') == 'true':
+            d['lastpokestops'] = request.args.get('pokestops', 'true')
+
+        if request.args.get('pokemon', 'true') == 'true':
+            d['lastpokemon'] = request.args.get('pokemon', 'true')
+
+        if request.args.get('scanned', 'true') == 'true':
+            d['lastslocs'] = request.args.get('scanned', 'true')
+
+        if request.args.get('spawnpoints', 'false') == 'true':
+            d['lastspawns'] = request.args.get('spawnpoints', 'false')
+
+        # If old coords are not equal to current coords we have moved/zoomed!
+        if oSwLng < swLng and oSwLat < swLat and oNeLat > neLat and oNeLng > neLng:
+            newArea = False  # We zoomed in no new area uncovered.
+        elif not (oSwLat == swLat and oSwLng == swLng and oNeLat == neLat and oNeLng == neLng):
+            newArea = True
+        else:
+            newArea = False
+
+        # Pass current coords as old coords.
+        d['oSwLat'] = swLat
+        d['oSwLng'] = swLng
+        d['oNeLat'] = neLat
+        d['oNeLng'] = neLng
+
+        if request.args.get('pokemon', 'true') == 'true':
+            if request.args.get('ids'):
+                ids = [int(x) for x in request.args.get('ids').split(',')]
+                d['pokemons'] = Pokemon.get_active_by_id(ids, swLat, swLng,
+                                                         neLat, neLng)
+            elif lastpokemon != 'true':
+                # If this is first request since switch on, load all pokemon on screen.
+                d['pokemons'] = Pokemon.get_active(swLat, swLng, neLat, neLng)
+            else:
+                # If map is already populated only request modified Pokemon since last request time.
+                d['pokemons'] = Pokemon.get_active(swLat, swLng, neLat, neLng, timestamp=timestamp)
+                if newArea:
+                    # If screen is moved add newly uncovered Pokemon to the ones that were modified since last request time.
+                    d['pokemons'] = d['pokemons'] + (Pokemon.get_active(swLat, swLng, neLat, neLng, oSwLat=oSwLat, oSwLng=oSwLng, oNeLat=oNeLat, oNeLng=oNeLng))
+
+            if request.args.get('eids'):
+                # Exclude id's of pokemon that are hidden.
+                eids = [int(x) for x in request.args.get('eids').split(',')]
+                d['pokemons'] = [x for x in d['pokemons'] if x['pokemon_id'] not in eids]
+
+            if request.args.get('reids'):
+                reids = [int(x) for x in request.args.get('reids').split(',')]
+                d['pokemons'] = d['pokemons'] + (Pokemon.get_active_by_id(reids, swLat, swLng, neLat, neLng))
+                d['reids'] = reids
+
+        if request.args.get('pokestops', 'true') == 'true':
+            if lastpokestops != 'true':
+                d['pokestops'] = Pokestop.get_stops(swLat, swLng, neLat, neLng, lured=luredonly)
+            else:
+                d['pokestops'] = Pokestop.get_stops(swLat, swLng, neLat, neLng, timestamp=timestamp)
+                if newArea:
+                    d['pokestops'] = d['pokestops'] + (Pokestop.get_stops(swLat, swLng, neLat, neLng, oSwLat=oSwLat, oSwLng=oSwLng, oNeLat=oNeLat, oNeLng=oNeLng, lured=luredonly))
+
+        if request.args.get('gyms', 'true') == 'true':
+            if lastgyms != 'true':
+                d['gyms'] = Gym.get_gyms(swLat, swLng, neLat, neLng)
+            else:
+                d['gyms'] = Gym.get_gyms(swLat, swLng, neLat, neLng, timestamp=timestamp)
+                if newArea:
+                    d['gyms'].update(Gym.get_gyms(swLat, swLng, neLat, neLng, oSwLat=oSwLat, oSwLng=oSwLng, oNeLat=oNeLat, oNeLng=oNeLng))
+
+        if request.args.get('scanned', 'true') == 'true':
+            if lastslocs != 'true':
+                d['scanned'] = ScannedLocation.get_recent(swLat, swLng, neLat, neLng)
+            else:
+                d['scanned'] = ScannedLocation.get_recent(swLat, swLng, neLat, neLng, timestamp=timestamp)
+                if newArea:
+                    d['scanned'] = d['scanned'] + (ScannedLocation.get_recent(swLat, swLng, neLat, neLng, oSwLat=oSwLat, oSwLng=oSwLng, oNeLat=oNeLat, oNeLng=oNeLng))
+
+        selected_duration = None
+
+        # for stats and changed nest points etc, limit pokemon queried.
+        for duration in self.get_valid_stat_input()["duration"]["items"].values():
+            if duration["selected"] == "SELECTED":
+                selected_duration = duration["value"]
+                break
+
+        if request.args.get('seen', 'false') == 'true':
+            d['seen'] = Pokemon.get_seen(selected_duration)
+
+        if request.args.get('appearances', 'false') == 'true':
+            d['appearances'] = Pokemon.get_appearances(request.args.get('pokemonid'), selected_duration)
+
+        if request.args.get('appearancesDetails', 'false') == 'true':
+            d['appearancesTimes'] = Pokemon.get_appearances_times_by_spawnpoint(request.args.get('pokemonid'),
+                                                                                request.args.get('spawnpoint_id'),
+                                                                                selected_duration)
+
+        if request.args.get('spawnpoints', 'false') == 'true':
+            if lastspawns != 'true':
+                d['spawnpoints'] = Pokemon.get_spawnpoints(swLat=swLat, swLng=swLng, neLat=neLat, neLng=neLng)
+            else:
+                d['spawnpoints'] = Pokemon.get_spawnpoints(swLat=swLat, swLng=swLng, neLat=neLat, neLng=neLng, timestamp=timestamp)
+                if newArea:
+                    d['spawnpoints'] = d['spawnpoints'] + (Pokemon.get_spawnpoints(swLat, swLng, neLat, neLng, oSwLat=oSwLat, oSwLng=oSwLng, oNeLat=oNeLat, oNeLng=oNeLng))
+
+        if request.args.get('status', 'false') == 'true':
+            args = get_args()
+            d = {}
+            if args.status_page_password is None:
+                d['error'] = 'Access denied'
+            elif request.args.get('password', None) == args.status_page_password:
+                d['main_workers'] = MainWorker.get_all()
+                d['workers'] = WorkerStatus.get_all()
+        return jsonify(d)
+
+    def loc(self):
+        d = {}
+        d['lat'] = self.current_location[0]
+        d['lng'] = self.current_location[1]
+
+        return jsonify(d)
+
+    def next_loc(self):
+        args = get_args()
+        if args.fixed_location:
+            return 'Location changes are turned off', 403
+        # Part of query string.
+        if request.args:
+            lat = request.args.get('lat', type=float)
+            lon = request.args.get('lon', type=float)
+        # From post requests.
+        if request.form:
+            lat = request.form.get('lat', type=float)
+            lon = request.form.get('lon', type=float)
+
+        if not (lat and lon):
+            log.warning('Invalid next location: %s,%s', lat, lon)
+            return 'bad parameters', 400
+        else:
+            self.location_queue.put((lat, lon, 0))
+            self.set_current_location((lat, lon, 0))
+            log.info('Changing next location: %s,%s', lat, lon)
+            return self.loc()
+
+    def list_pokemon(self):
+        # todo: Check if client is Android/iOS/Desktop for geolink, currently
+        # only supports Android.
+        pokemon_list = []
+
+        # Allow client to specify location.
+        lat = request.args.get('lat', self.current_location[0], type=float)
+        lon = request.args.get('lon', self.current_location[1], type=float)
+        origin_point = LatLng.from_degrees(lat, lon)
+
+        for pokemon in Pokemon.get_active(None, None, None, None):
+            pokemon_point = LatLng.from_degrees(pokemon['latitude'],
+                                                pokemon['longitude'])
+            diff = pokemon_point - origin_point
+            diff_lat = diff.lat().degrees
+            diff_lng = diff.lng().degrees
+            direction = (('N' if diff_lat >= 0 else 'S')
+                         if abs(diff_lat) > 1e-4 else '') +\
+                        (('E' if diff_lng >= 0 else 'W')
+                         if abs(diff_lng) > 1e-4 else '')
+            entry = {
+                'id': pokemon['pokemon_id'],
+                'name': pokemon['pokemon_name'],
+                'card_dir': direction,
+                'distance': int(origin_point.get_distance(
+                    pokemon_point).radians * 6366468.241830914),
+                'time_to_disappear': '%d min %d sec' % (divmod((
+                    pokemon['disappear_time'] - datetime.utcnow()).seconds, 60)),
+                'disappear_time': pokemon['disappear_time'],
+                'disappear_sec': (pokemon['disappear_time'] - datetime.utcnow()).seconds,
+                'latitude': pokemon['latitude'],
+                'longitude': pokemon['longitude']
+            }
+            pokemon_list.append((entry, entry['distance']))
+        pokemon_list = [y[0] for y in sorted(pokemon_list, key=lambda x: x[1])]
+        return render_template('mobile_list.html',
+                               pokemon_list=pokemon_list,
+                               origin_lat=lat,
+                               origin_lng=lon)
+
+    def get_valid_stat_input(self):
+        duration = request.args.get("duration", type=str)
+        sort = request.args.get("sort", type=str)
+        order = request.args.get("order", type=str)
+        valid_durations = OrderedDict()
+        valid_durations["1h"] = {"display": "Last Hour", "value": timedelta(hours=1), "selected": ("SELECTED" if duration == "1h" else "")}
+        valid_durations["3h"] = {"display": "Last 3 Hours", "value": timedelta(hours=3), "selected": ("SELECTED" if duration == "3h" else "")}
+        valid_durations["6h"] = {"display": "Last 6 Hours", "value": timedelta(hours=6), "selected": ("SELECTED" if duration == "6h" else "")}
+        valid_durations["12h"] = {"display": "Last 12 Hours", "value": timedelta(hours=12), "selected": ("SELECTED" if duration == "12h" else "")}
+        valid_durations["1d"] = {"display": "Last Day", "value": timedelta(days=1), "selected": ("SELECTED" if duration == "1d" else "")}
+        valid_durations["7d"] = {"display": "Last 7 Days", "value": timedelta(days=7), "selected": ("SELECTED" if duration == "7d" else "")}
+        valid_durations["14d"] = {"display": "Last 14 Days", "value": timedelta(days=14), "selected": ("SELECTED" if duration == "14d" else "")}
+        valid_durations["1m"] = {"display": "Last Month", "value": timedelta(days=365 / 12), "selected": ("SELECTED" if duration == "1m" else "")}
+        valid_durations["3m"] = {"display": "Last 3 Months", "value": timedelta(days=3 * 365 / 12), "selected": ("SELECTED" if duration == "3m" else "")}
+        valid_durations["6m"] = {"display": "Last 6 Months", "value": timedelta(days=6 * 365 / 12), "selected": ("SELECTED" if duration == "6m" else "")}
+        valid_durations["1y"] = {"display": "Last Year", "value": timedelta(days=365), "selected": ("SELECTED" if duration == "1y" else "")}
+        valid_durations["all"] = {"display": "Map Lifetime", "value": 0, "selected": ("SELECTED" if duration == "all" else "")}
+        if duration not in valid_durations:
+            valid_durations["1d"]["selected"] = "SELECTED"
+        valid_sort = OrderedDict()
+        valid_sort["count"] = {"display": "Count", "selected": ("SELECTED" if sort == "count" else "")}
+        valid_sort["id"] = {"display": "Pokedex Number", "selected": ("SELECTED" if sort == "id" else "")}
+        valid_sort["name"] = {"display": "Pokemon Name", "selected": ("SELECTED" if sort == "name" else "")}
+        if sort not in valid_sort:
+            valid_sort["count"]["selected"] = "SELECTED"
+        valid_order = OrderedDict()
+        valid_order["asc"] = {"display": "Ascending", "selected": ("SELECTED" if order == "asc" else "")}
+        valid_order["desc"] = {"display": "Descending", "selected": ("SELECTED" if order == "desc" else "")}
+        if order not in valid_order:
+            valid_order["desc"]["selected"] = "SELECTED"
+        valid_input = OrderedDict()
+        valid_input["duration"] = {"display": "Duration", "items": valid_durations}
+        valid_input["sort"] = {"display": "Sort", "items": valid_sort}
+        valid_input["order"] = {"display": "Order", "items": valid_order}
+        return valid_input
+
+    def get_stats(self):
+        return render_template('statistics.html',
+                               lat=self.current_location[0],
+                               lng=self.current_location[1],
+                               gmaps_key=config['GMAPS_KEY'],
+                               valid_input=self.get_valid_stat_input()
+                               )
+
+    def get_gymdata(self):
+        gym_id = request.args.get('id')
+        gym = Gym.get_gym(gym_id)
+
+        return jsonify(gym)
+
+    def get_status(self):
+        args = get_args()
+        if args.status_page_password is None:
+            abort(404)
+
+        return render_template('status.html')
+
+    def post_status(self):
+        args = get_args()
+        d = {}
+        if args.status_page_password is None:
+            abort(404)
+
+        if request.form.get('password', None) == args.status_page_password:
+            d['login'] = 'ok'
+            d['main_workers'] = MainWorker.get_all()
+            d['workers'] = WorkerStatus.get_all()
+        else:
+            d['login'] = 'failed'
+        return jsonify(d)
+
+
+class CustomJSONEncoder(JSONEncoder):
+
+    def default(self, obj):
+        try:
+            if isinstance(obj, datetime):
+                if obj.utcoffset() is not None:
+                    obj = obj - obj.utcoffset()
+                millis = int(
+                    calendar.timegm(obj.timetuple()) * 1000 +
+                    obj.microsecond / 1000
+                )
+                return millis
+            iterable = iter(obj)
+        except TypeError:
+            pass
+        else:
+            return list(iterable)
+        return JSONEncoder.default(self, obj)
