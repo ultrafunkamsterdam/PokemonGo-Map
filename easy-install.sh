@@ -61,8 +61,10 @@ function virtualEnv(){
 git clone --recursive https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2.git $INSTALLDIR
 virtualEnv || { echo 'you need to install virtualenv for this to work (sudo apt-get install python-virtualenv)' ; exit $ERRCODE ; }
 git checkout develop #just to be sure
-pip install -r requirements.txt --upgrade
 git submodule init && git submodule update
+pip install -r requirements.txt
+git submodule init && git submodule update
+pip install -r requirements.txt --upgrade
 #awk -v n=499 -v s="\t\tapi.activate_hash_server('$HASHAPIKEY')" 'NR == n {print s} {print}' pogom/search.py > search.tmp && mv search.tmp pogom/search.py
 npm install && grunt build
 deactivate
