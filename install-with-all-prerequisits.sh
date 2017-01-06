@@ -32,12 +32,9 @@ echo -e "\n\n\tNow we are going to install PokemonGo-Map with hashing server sup
 echo -e -n "\n\n\tHERE WE GO AGAIN!" && for i in {10..30};do echo -e -n "." ;((i++));sleep 0.1;done
 
 
-[[ ${USER} == ROOT ]] && echo -e "You are running as root.\nFor PokemonGo-Maps i recommend running the installscript as normal user.
-read -p "please enter your default username : " un
-sudo -u "$un" bash << EOF
-[[ -f easy-install.sh ]] && rm easy-install.sh 
-wget https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/develop/easy-install.sh 
-sudo chmod 755 easy-install.sh
-bash ./easy-install.sh
-EOF
+[[ ${USER} == ROOT ]] && echo -e "\n\nYou are running as root.\nFor PokemonGo-Maps i recommend running the installscript as normal user.
+echo -e "\n\Copy below line and paste in your terminal as normal user. You might be asked to provide sudo credentials.n\\n"
+echo -e "[[ -f easy-install.sh ]] && rm easy-install.sh ; wget https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/develop/easy-install.sh && sudo chmod 755 easy-install.sh ; bash./easy-install.sh"
+echo -e "'\n\nGood luck!" && sleep 3
+exit
 
