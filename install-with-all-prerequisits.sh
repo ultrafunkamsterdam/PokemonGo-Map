@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 BASE_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 clear
+#
+# Correct line to install
+# [[ -f install-with-all-prerequisits.sh ]] && rm install-with-all-prerequisits.sh; wget https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/develop/install-with-all-prerequisits.sh ; sudo chmod 775 install-with-all-prerequisits.sh && sudo bash ./install-with-all-prerequisits.sh
+#
 echo -e "\n\n\t======= This will install everything you need to run PokemonGo-Maps =======" 
 echo -e "\n\n\tYou should run this script with root privileges:  sudo bash $0"  
 echo -e "\n\n\tpress ctrl+c to cancel . I'll give you 5 seconds to copy above command to run as sudo user" && sleep 5
@@ -19,7 +23,7 @@ apt-get -y update
 apt-get install -y nodejs nodejs-legacy npm
 
 #PYTHON
-apt-get install -y python2.7 python-pip python-virtualenv git
+apt-get install -y python2.7 python-pip python-dev python-virtualenv git
 npm -v 
 npm install -g grunt-cli
 clear
@@ -28,8 +32,12 @@ echo -e "\n\n\tNow we are going to install PokemonGo-Map with hashing server sup
 echo -e -n "\n\n\tHERE WE GO AGAIN!" && for i in {10..30};do echo -e -n "." ;((i++));sleep 0.1;done
 
 
-[[ -f easy-install.sh ]] && rm easy-install.sh
-wget https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/develop/easy-install.sh
+[[ ${USER} == ROOT ]] && echo -e "You are running as root.\nFor PokemonGo-Maps i recommend running the installscript as normal user.
+read -p "please enter your default username : " un
+sudo -u "$un" bash << EOF
+[[ -f easy-install.sh ]] && rm easy-install.sh 
+wget https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/develop/easy-install.sh 
 sudo chmod 755 easy-install.sh
 bash ./easy-install.sh
+EOF
 
