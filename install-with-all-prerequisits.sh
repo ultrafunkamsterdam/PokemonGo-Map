@@ -55,7 +55,7 @@ echo -e "Let's check version of NPM. Should be 3.10.x \n\n"
 npm -v 
 sleep 3
 clear
-npm install -g grunt-cli
+sudo npm install -g grunt-cli
 echo -e "--------------\n\tGrunt-cli installed!\n\t" 
 sleep 3
 clear
