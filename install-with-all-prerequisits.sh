@@ -33,12 +33,15 @@ echo -e "--------------\n\tOld versions of node and npm removed!\n\t"
 sleep 3
 clear
 
+# INSTALL OLDER NODE BACK AGAIN (SOME BUG)
+sudo apt-get install nodejs-legacy nodejs
 
 # NPM NODE MORE RECENT STUFF
 sudo curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash -
 sudo apt-get -y update
-sudo apt-get install -y nodejs npm nodered
 sudo apt-get install -y nodejs-legacy
+sudo apt-get install -y nodejs npm nodered
+
 echo -e "--------------\n\tNew version(6.x) of node and npm installed! Including legacy!\n\t" 
 sleep 3
 clear
