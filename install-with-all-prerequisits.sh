@@ -37,11 +37,8 @@ clear
 
 
 # NPM NODE MORE RECENT STUFF
-sudo curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash -
-sudo apt-get -y update
-sudo apt-get install nodejs
-sudo apt-get install nodejs-legacy
-sudo apt-get install npm
+curl -sL https://deb.nodesource.com/setup_7.x | sudo -E bash -
+sudo apt-get install -y nodejs
 
 echo -e "--------------\n\tNew version(6.x) of node and npm installed! Including legacy!\n\t" 
 sleep 3
