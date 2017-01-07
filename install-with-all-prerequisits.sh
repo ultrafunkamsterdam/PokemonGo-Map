@@ -28,7 +28,7 @@ sleep 3
 clear
 
 # REMOVING OLD VERSIONS OF NODE, NPM NODERED 
-sudo apt-get purge -y nodejs-legacy nodejs nodered npm
+sudo apt-get -y purge nodejs nodejs-legacy nodered npm
 echo -e "--------------\n\tOld versions of node and npm removed!\n\t" 
 sleep 3
 clear
@@ -37,7 +37,7 @@ clear
 # NPM NODE MORE RECENT STUFF
 sudo curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash -
 sudo apt-get -y update
-sudo apt-get install -y nodejs nodejs-legacy npm
+sudo apt-get install -y nodejs nodejs-legacy npm nodered
 echo -e "--------------\n\tNew version(6.x) of node and npm installed! Including legacy!\n\t" 
 sleep 3
 clear
