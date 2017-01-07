@@ -7,12 +7,12 @@ clear
 #
 echo -e "\n\n\t======= This will install everything you need in order to install and run PokemonGo-Maps =======\n\n"
 #echo -e "\n\n\tYou should run this script with sudo privileges:  sudo bash $0 \nIf yo " 
-echo -e -n "\t" && read -n 1 -s -p "Press any key to continue"
+echo -e -n "\t";read -n 1 -s -p "Press any key to continue"
 
 #echo -e "\n\n\tpress ctrl+c to cancel . I'll give you 10 seconds to copy above command to and press ctrl+C to cancel\
 # this. After that, script will start running and giving lots of errors." && sleep 10
 echo -e -n "\n\n\tStarting installation" && for i in {10..30};do echo -e -n "." ;((i++));sleep 0.1;done
-echo -e "\n\n\tThere we go!!! Jihaaaaa" && sleep 1.5
+echo -e "\n\n\tThere we go!!! Jihaaaaa" && sleep 4
 clear
 
 sudo apt-get -y update 
