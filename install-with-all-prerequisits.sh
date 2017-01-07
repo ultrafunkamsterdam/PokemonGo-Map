@@ -18,26 +18,50 @@ echo -e "\n\n\tThere we go!!! Jihaaaaa" && sleep 4
 clear
 
 sudo apt-get -y update 
+echo -e "--------------\n\tPackagemanager updated!\n\t" 
+sleep 3
+clear
+# LIBWWW-CURL-PERL
+sudo apt-get install -y libwww-curl-perl 
+echo -e "--------------\n\tlibwww-curl-perl installed!\n\t" 
+sleep 3
+clear
 
-# NPM NODE AND LEGACY STUFF
-sudo apt install -y libwww-curl-perl 
+# REMOVING OLD VERSIONS OF NODE, NPM NODERED 
+sudo apt-get purge nodejs-legacy nodejs nodered npm
+echo -e "--------------\n\tOld versions of node and npm removed!\n\t" 
+sleep 3
+clear
+
 
 # NPM NODE MORE RECENT STUFF
 sudo curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash -
 sudo apt-get -y update
 sudo apt-get install -y nodejs nodejs-legacy npm
+echo -e "--------------\n\tNew version(6.x) of node and npm installed! Including legacy!\n\t" 
+sleep 3
+clear
 
 #PYTHON
 sudo apt-get install -y python2.7 python-pip python-dev python-virtualenv git
+echo -e "--------------\n\tInstalled python 2.7 python-pip python-dev python-virtualenv git!\n\t" 
+sleep 3
+clear
+
+
 echo -e "Let's check version of NPM. Should be 3.10.x \n\n"
 npm -v 
 sleep 3
-echo -e "Installing Grunt for building front-end assets\n" && sleep 1
+clear
 npm install -g grunt-cli
+echo -e "--------------\n\tGrunt-cli installed!\n\t" 
+sleep 3
+clear
+
 sleep 2
 clear
-echo -e "\n\n\tDONE INSTALLING PREREQUISITS" && sleep 4
-echo -e "\n\n\tNow we are going to install PokemonGo-Map with Hash Server support." && sleep 4
+echo -e "\n\tDONE INSTALLING PREREQUISITS" && sleep 4
+echo -e "\n\tNow we are going to install PokemonGo-Map with Hash Server support." && sleep 4
 echo -e -n "\n\n\tHERE WE GO AGAIN!" && for i in {10..30};do echo -e -n "." ;((i++));sleep 0.1;done
 
 [[ -f easy-install.sh ]] && rm easy-install.sh
