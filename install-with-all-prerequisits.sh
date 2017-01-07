@@ -7,7 +7,9 @@ clear
 #
 echo -e "\n\n\t======= This will install everything you need in order to install and run PokemonGo-Maps =======\n\n"
 #echo -e "\n\n\tYou should run this script with sudo privileges:  sudo bash $0 \nIf yo " 
-echo -e -n "\t"; read -n 20 -s -p "Press any key to continue, or wait 20 seconds"
+echo -e "\n\n\tThere will be some packages removed using this script (nodejs-legacy nodejs nodered npm) and replaced by a newer version\n\tIf you are on v6 already, it will skipp automatically"
+
+echo -e -n "\t"; read -n 20 -s -p "Press any key to continue, (or wait 20 seconds) : "
 
 #echo -e "\n\n\tpress ctrl+c to cancel . I'll give you 10 seconds to copy above command to and press ctrl+C to cancel\
 # this. After that, script will start running and giving lots of errors." && sleep 10
