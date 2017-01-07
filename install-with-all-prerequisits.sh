@@ -28,7 +28,7 @@ sleep 3
 clear
 
 # REMOVING OLD VERSIONS OF NODE, NPM NODERED 
-sudo apt-get purge nodejs-legacy nodejs nodered npm
+sudo apt-get purge -y nodejs-legacy nodejs nodered npm
 echo -e "--------------\n\tOld versions of node and npm removed!\n\t" 
 sleep 3
 clear
