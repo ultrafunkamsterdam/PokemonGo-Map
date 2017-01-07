@@ -3,7 +3,7 @@ BASE_DIR=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
 clear
 #
 # FOR EASY INSTALLATION USING 1 LINE. COPY BELOW LINE AND PASTE IT IN YOUR TERMINAL (DO NOT COPY THE HASH PLEASE).
-# [[ -f install-with-all-prerequisits.sh ]] && rm install-with-all-prerequisits.sh; wget https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/develop/install-with-all-prerequisits.sh ; sudo chmod 775 install-with-all-prerequisits.sh && sudo bash ./install-with-all-prerequisits.sh
+# [[ -f install-with-all-prerequisits.sh ]] && rm install-with-all-prerequisits.sh; wget https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/develop/install-with-all-prerequisits.sh ; sudo chmod 775 install-with-all-prerequisits.sh && bash ./install-with-all-prerequisits.sh
 #
 echo -e "\n\n\t======= This will install everything you need in order to install and run PokemonGo-Maps =======\n\n"
 #echo -e "\n\n\tYou should run this script with sudo privileges:  sudo bash $0 \nIf yo " 
