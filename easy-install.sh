@@ -64,9 +64,11 @@ git checkout updates-need-review #just to be sure
 git submodule init && git submodule update
 pip install -r requirements.txt
 git submodule init && git submodule update
+pip uninstall pgoapi
 pip install -r requirements.txt --upgrade
+pip install protobuf==3.1.0.post1 --force-reinstall
 #awk -v n=499 -v s="\t\tapi.activate_hash_server('$HASHAPIKEY')" 'NR == n {print s} {print}' pogom/search.py > search.tmp && mv search.tmp pogom/search.py
-npm install && grunt build
+npm install
 deactivate
 clear 
 echo -e -n "\n\n\nINSTALLATION FINISHED ! Another script containing more fancyness than usable code, exlusively brought to you by:\n\n\t" && for i in {0..17}; do echo -e -n  "${CREDITS:i:1} " ;((i++));sleep 0.18; done  
