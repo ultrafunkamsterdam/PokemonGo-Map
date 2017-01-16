@@ -39,7 +39,7 @@ from pgoapi.exceptions import AuthException
 
 from .models import parse_map, GymDetails, parse_gyms, MainWorker, WorkerStatus
 from .fakePogoApi import FakePogoApi
-from .utils import now
+from .utils import now, get_tutorial_state, complete_tutorial
 from .transform import get_new_coords
 import schedulers
 
@@ -502,6 +502,9 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
         try:
             status['starttime'] = now()
 
+            # Track per loop.
+            first_login = True
+
             # Get an account.
             status['message'] = 'Waiting to get new account from the queue...'
             log.info(status['message'])
@@ -665,6 +668,18 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
                 check_login(args, account, api, step_location,
                             status['proxy_url'])
 
+                # Only run this when it's the account's first login, after
+                # check_login().
+                if first_login:
+                    first_login = False
+
+                    # Check tutorial completion.
+                    if args.complete_tutorial:
+                        tutorial_state = get_tutorial_state(api)
+
+                        if not all(x in tutorial_state for x in (0, 1, 3, 4, 7)):
+                            complete_tutorial(api, account, tutorial_state)
+
                 # Putting this message after the check_login so the messages
                 # aren't out of order.
                 status['message'] = messages['search']
@@ -672,7 +687,7 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
 
                 # Make the actual request.
                 scan_date = datetime.utcnow()
-                response_dict = map_request(api, step_location, args.jitter)
+                response_dict = map_request(api, step_location, args.no_jitter)
                 status['last_scan_date'] = datetime.utcnow()
 
                 # Record the time and the place that the worker made the
@@ -724,7 +739,7 @@ def search_worker_thread(args, account_queue, account_failures, search_items_que
                                     # location since the previous one was
                                     # captcha'd.
                                     response_dict = map_request(
-                                        api, step_location, args.jitter)
+                                        api, step_location, args.no_jitter)
                                     status['last_scan_date'] = datetime.utcnow()
                                 else:
                                     status['message'] = "Account {} failed verifyChallenge, putting away account for now.".format(account[
@@ -874,17 +889,17 @@ def check_login(args, account, api, position, proxy_url):
     time.sleep(20)
 
 
-def map_request(api, position, jitter=False):
+def map_request(api, position, no_jitter=False):
     # Create scan_location to send to the api based off of position, because
     # tuples aren't mutable.
-    if jitter:
+    if no_jitter:
+        # Just use the original coordinates.
+        scan_location = position
+    else:
         # Jitter it, just a little bit.
         scan_location = jitterLocation(position)
         log.debug('Jittered to: %f/%f/%f',
                   scan_location[0], scan_location[1], scan_location[2])
-    else:
-        # Just use the original coordinates.
-        scan_location = position
 
     try:
         cell_ids = util.get_cell_ids(scan_location[0], scan_location[1])
