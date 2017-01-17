@@ -684,13 +684,13 @@ function setupGymMarker (item) {
       marker.persist = null
     })
 	
-	if ( ! isTouchDevice() && ! isMobileDevice()) {
+	
     marker.addListener('mouseover', function () {
       marker.infoWindow.open(map, marker)
       clearSelection()
       updateLabelDiffTime()
     })
-	}
+	
 	
 	
     marker.addListener('mouseout', function () {
@@ -881,13 +881,13 @@ function addListeners (marker) {
     marker.persist = null
   })
 
-  if ( ! isTouchDevice() && ! isMobileDevice()) {
+
   marker.addListener('mouseover', function () {
     marker.infoWindow.open(map, marker)
     clearSelection()
     updateLabelDiffTime()
   })
-  }
+  
   
   marker.addListener('mouseout', function () {
     if (!marker.persist) {
