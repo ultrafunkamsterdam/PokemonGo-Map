@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 #
 #  for even easier installation: copy-paste this line in your terminal (not the damn hash of course):
+
 # [[ -f easy-install.sh ]] && rm easy-install.sh ; wget https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/MASTER/easy-install.sh && sudo chmod 755 easy-install.sh && bash ./easy-install.sh
+
 #
 # >>>  Created and tested on Ubuntu 16.04 64-bits <<<
 #
@@ -60,7 +62,9 @@ function virtualEnv(){
 
 git clone --recursive https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2.git $INSTALLDIR
 virtualEnv || { echo 'you need to install virtualenv for this to work (sudo apt-get install python-virtualenv)' ; exit $ERRCODE ; }
+
 git checkout MASTER #just to be sure
+
 git submodule init && git submodule update
 pip install -r requirements.txt
 git submodule init && git submodule update
