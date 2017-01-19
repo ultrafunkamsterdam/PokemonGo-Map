@@ -68,9 +68,9 @@ git checkout MASTER #just to be sure
 git submodule init && git submodule update
 pip install -r requirements.txt
 git submodule init && git submodule update
-pip uninstall pgoapi
-pip install -r requirements.txt --upgrade
-pip install protobuf==3.1.0.post1 --force-reinstall
+#pip uninstall pgoapi
+#pip install -r requirements.txt --upgrade
+#pip install protobuf==3.1.0.post1 --force-reinstall
 #awk -v n=499 -v s="\t\tapi.activate_hash_server('$HASHAPIKEY')" 'NR == n {print s} {print}' pogom/search.py > search.tmp && mv search.tmp pogom/search.py
 npm install
 deactivate
