@@ -66,7 +66,7 @@ virtualEnv || { echo 'you need to install virtualenv for this to work (sudo apt-
 git checkout develop #just to be sure
 
 git submodule init && git submodule update
-pip install -r requirements.txt
+pip install -r requirements.txt --upgrade
 
 #awk -v n=499 -v s="\t\tapi.activate_hash_server('$HASHAPIKEY')" 'NR == n {print s} {print}' pogom/search.py > search.tmp && mv search.tmp pogom/search.py
 npm install
