@@ -62,11 +62,9 @@ function virtualEnv(){
 
 git clone --recursive https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2.git $INSTALLDIR
 virtualEnv || { echo 'you need to install virtualenv for this to work (sudo apt-get install python-virtualenv)' ; exit $ERRCODE ; }
-
 git checkout develop #just to be sure
-
 git submodule init && git submodule update
-pip install -r requirements.txt
+pip install -r requirements.txt --upgrade
 npm install
 deactivate
 clear 
