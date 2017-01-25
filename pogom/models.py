@@ -1108,7 +1108,7 @@ class WorkerStatus(BaseModel):
                 break
             except Exception as e:
                 log.error('Exception in get_worker under account {}.  '
-                          'Exception message: {}'.format(username, e))
+                          'Exception message: {}'.format(username, repr(e)))
                 traceback.print_exc(file=sys.stdout)
                 time.sleep(1)
 
@@ -1606,15 +1606,12 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
     # If there are no wild or nearby Pokemon . . .
     if not wild_pokemon and not nearby_pokemon:
         # . . . and there are no gyms/pokestops then it's unusable/bad.
+        abandon_loc = False
+
         if not forts:
             log.warning('Bad scan. Parsing found absolutely nothing.')
             log.info('Common causes: captchas or IP bans.')
-            return {
-                'count': 0,
-                'gyms': gyms,
-                'spawn_points': spawn_points,
-                'bad_scan': True
-            }
+            abandon_loc = True
         else:
             # No wild or nearby Pokemon but there are forts.  It's probably
             # a speed violation.
@@ -1623,12 +1620,19 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
             if not (config['parse_pokestops'] or config['parse_gyms']):
                 # If we're not going to parse the forts, then we'll just
                 # exit here.
-                return {
-                    'count': 0,
-                    'gyms': gyms,
-                    'spawn_points': spawn_points,
-                    'bad_scan': True
-                }
+                abandon_loc = True
+
+        if abandon_loc:
+            scan_loc = ScannedLocation.get_by_loc(step_location)
+            ScannedLocation.update_band(scan_loc)
+            db_update_queue.put((ScannedLocation, {0: scan_loc}))
+
+            return {
+                'count': 0,
+                'gyms': gyms,
+                'spawn_points': spawn_points,
+                'bad_scan': True
+            }
 
     scan_loc = ScannedLocation.get_by_loc(step_location)
     done_already = scan_loc['done']
@@ -2107,7 +2111,7 @@ def db_updater(args, q, db):
                     flaskDb.connect_db()
                     break
                 except Exception as e:
-                    log.warning('%s... Retrying...', e)
+                    log.warning('%s... Retrying...', repr(e))
                     time.sleep(5)
 
             # Loop the queue.
@@ -2126,7 +2130,7 @@ def db_updater(args, q, db):
                         q.qsize())
 
         except Exception as e:
-            log.exception('Exception in db_updater: %s', e)
+            log.exception('Exception in db_updater: %s', repr(e))
             time.sleep(5)
 
 
@@ -2163,7 +2167,7 @@ def clean_db_loop(args):
             log.info('Regular database cleaning complete.')
             time.sleep(60)
         except Exception as e:
-            log.exception('Exception in clean_db_loop: %s', e)
+            log.exception('Exception in clean_db_loop: %s', repr(e))
 
 
 def bulk_upsert(cls, data, db):
@@ -2202,10 +2206,10 @@ def bulk_upsert(cls, data, db):
                              'peewee.IntegerField object at']
             has_unrecoverable = filter(lambda x: x in str(e), unrecoverable)
             if has_unrecoverable:
-                log.warning('%s. Data is:', e)
+                log.warning('%s. Data is:', repr(e))
                 log.warning(data.items())
             else:
-                log.warning('%s... Retrying...', e)
+                log.warning('%s... Retrying...', repr(e))
                 time.sleep(1)
                 continue
 
