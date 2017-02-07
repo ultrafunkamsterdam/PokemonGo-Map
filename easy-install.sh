@@ -46,6 +46,7 @@ CREDITS="ULTRAFUNKAMSTERDAM"
 	echo -e "python ./runserver.py -hk YOURKEY -hk YOURKEY2 -hk YOURKEY ( rest of configuration )\n"
 	echo -e "For more information about command line options please visit:\nhttps://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/blob/develop/pogom/utils.py#L54-L224 \n\n"
 	read -p 'INSTALL DIR - FULL PATH ( default /home/'$USER'/PokemonGo-Maps )  :' INSTALLDIR
+    read -p 'Name of your maps? (Will substitute "Rocket Maps" to your desired name) :' MAPSNAME
 	[[ ! -z "$INSTALLDIR" ]] && mkdir $INSTALLDIR || INSTALLDIR=/home/$USER/PokemonGo-Maps
 	#echo -e "\n\n\nENTER YOUR HASH SERVER API KEY";
 	#read -p 'API KEY :' HASHAPIKEY
@@ -64,7 +65,10 @@ git clone --recursive https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2.git
 virtualEnv || { echo 'you need to install virtualenv for this to work (sudo apt-get install python-virtualenv)' ; exit $ERRCODE ; }
 git checkout develop #just to be sure
 git submodule init && git submodule update
-pip install -r requirements.txt --upgrade
+pip install -r requirements.txt
+command -v unzip >/dev/null 2>&1 || ( echo -e "Unzip is needed for the static assets to unzip ... \n" && sleep 2 && echo -e "Trying to install ... \n" && sudo apt-get install unzip; if [ $? -eq 0 ] ; then echo "Successfully installed!"; else echo "Error installing unzip. Exiting ..." && exit -1;fi ) 
+wget https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/raw/develop/static.zip
+unzip static.zip >/dev/null 2>&1 && echo -e "Unzipping completed successfully, proceeding to build static assets ... \n" && sleep 2 || echo -e "Unzipping failed! Exiting script now ... \n" && sleep 2 && exit -1
 npm install
 deactivate
 clear 
