@@ -69,6 +69,7 @@ pip install -r requirements.txt
 command -v unzip >/dev/null 2>&1 || ( echo -e "Unzip is needed for the static assets to unzip ... \n" && sleep 2 && echo -e "Trying to install ... \n" && sudo apt-get install unzip; if [ $? -eq 0 ] ; then echo "Successfully installed!"; else echo "Error installing unzip. Exiting ..." && exit -1;fi ) 
 wget https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/raw/develop/static.zip
 unzip static.zip >/dev/null 2>&1 && echo -e "Unzipping completed successfully, proceeding to build static assets ... \n" && sleep 2 || echo -e "Unzipping failed! Exiting script now ... \n" && sleep 2 && exit -1
+[[ ! -z $MAPSNAME ]] && sed -i "s|Rocket Map|$MAPSNAME|g" templates/*
 npm install
 deactivate
 clear 
