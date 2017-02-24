@@ -13,6 +13,7 @@ import random
 import time
 import socket
 import struct
+import zipfile
 import requests
 from uuid import uuid4
 from s2sphere import CellId, LatLng
@@ -134,7 +135,7 @@ def get_args():
     parser.add_argument('-ck', '--captcha-key',
                         help='2Captcha API key.')
     parser.add_argument('-cds', '--captcha-dsk',
-                        help='PokemonGo captcha data-sitekey.',
+                        help='Pokemon Go captcha data-sitekey.',
                         default="6LeeTScTAAAAADqvhqVMhPpr_vB9D364Ia-1dSgK")
     parser.add_argument('-mcd', '--manual-captcha-domain',
                         help='Domain to where captcha tokens will be sent.',
@@ -273,6 +274,10 @@ def get_args():
                         help=('Set a maximum speed in km/hour for scanner ' +
                               'movement.'),
                         type=int, default=35)
+    parser.add_argument('-ldur', '--lure-duration',
+                        help=('Change duration for lures set on pokestops. ' +
+                              'This is useful for events that extend lure ' +
+                              'duration.'), type=int, default=30)
     parser.add_argument('--dump-spawnpoints',
                         help=('Dump the spawnpoints from the db to json ' +
                               '(only for use with -ss).'),
@@ -403,7 +408,7 @@ def get_args():
                         action='store_true', default=False)
     verbosity = parser.add_mutually_exclusive_group()
     verbosity.add_argument('-v', '--verbose',
-                           help=('Show debug messages from PokemonGo-Map ' +
+                           help=('Show debug messages from RocketMap ' +
                                  'and pgoapi. Optionally specify file ' +
                                  'to log to.'),
                            nargs='?', const='nofile', default=False,
@@ -870,3 +875,10 @@ def generate_device_info():
         device_info['firmware_type'] = random.choice(ios8 + ios9 + ios10)
 
     return device_info
+
+
+def extract_sprites():
+    log.debug("Extracting sprites...")
+    zip = zipfile('static01.zip', 'r')
+    zip.extractall('static')
+    zip.close()

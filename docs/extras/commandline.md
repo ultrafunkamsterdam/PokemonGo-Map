@@ -16,7 +16,7 @@
                         [-msl MIN_SECONDS_LEFT] [-dc] [-H HOST] [-P PORT]
                         [-L LOCALE] [-c] [-m MOCK] [-ns] [-os] [-nsc] [-fl] -k
                         GMAPS_KEY [--skip-empty] [-C] [-D DB] [-cd] [-np] [-ng]
-                        [-nk] [-ss [SPAWNPOINT_SCANNING]] [-speed] [-kph KPH]
+                        [-nk] [-ss [SPAWNPOINT_SCANNING]] [-speed] [-kph KPH] [-ldur DURATION]
                         [--dump-spawnpoints] [-pd PURGE_DATA] [-px PROXY] [-pxsc]
                         [-pxt PROXY_TIMEOUT] [-pxd PROXY_DISPLAY]
                         [-pxf PROXY_FILE] [-pxr PROXY_REFRESH]
@@ -105,7 +105,7 @@
       -ck CAPTCHA_KEY, --captcha-key CAPTCHA_KEY
                             2Captcha API key. [env var: POGOMAP_CAPTCHA_KEY]
       -cds CAPTCHA_DSK, --captcha-dsk CAPTCHA_DSK
-                            PokemonGo captcha data-sitekey. [env var:
+                            Pokemon Go captcha data-sitekey. [env var:
                             POGOMAP_CAPTCHA_DSK]
       -mcd MANUAL-CAPTCHA-DOMAIN --manual-captcha-domain
                             Domain to where captcha tokens will be sent
@@ -206,6 +206,10 @@
                             scan closest spawns. [env var: POGOMAP_SPEED_SCAN]
       -kph KPH, --kph KPH   Set a maximum speed in km/hour for scanner movement.
                             [env var: POGOMAP_KPH]
+      -ldur DURATION, --lure-duration DURATION
+                            Change duration for lures set on pokestops. This is
+                            useful for events that extend lure duration.
+                            [env var: POGOMAP_LURE_DURATION]
       --dump-spawnpoints    Dump the spawnpoints from the db to json (only for use
                             with -ss). [env var: POGOMAP_DUMP_SPAWNPOINTS]
       -pd PURGE_DATA, --purge-data PURGE_DATA

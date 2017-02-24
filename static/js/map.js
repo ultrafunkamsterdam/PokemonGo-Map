@@ -158,7 +158,7 @@ function initMap() { // eslint-disable-line no-unused-vars
     map.mapTypes.set('style_light2', styleLight2)
 
     var stylePgo = new google.maps.StyledMapType(pGoStyle, {
-        name: 'PokemonGo'
+        name: 'RocketMap'
     })
     map.mapTypes.set('style_pgo', stylePgo)
 
@@ -173,17 +173,17 @@ function initMap() { // eslint-disable-line no-unused-vars
     map.mapTypes.set('style_light2_nl', styleLight2Nl)
 
     var stylePgoNl = new google.maps.StyledMapType(pGoStyleNoLabels, {
-        name: 'PokemonGo (No Labels)'
+        name: 'RocketMap (No Labels)'
     })
     map.mapTypes.set('style_pgo_nl', stylePgoNl)
 
     var stylePgoDay = new google.maps.StyledMapType(pGoStyleDay, {
-        name: 'PokemonGo Day'
+        name: 'RocketMap Day'
     })
     map.mapTypes.set('style_pgo_day', stylePgoDay)
 
     var stylePgoNight = new google.maps.StyledMapType(pGoStyleNight, {
-        name: 'PokemonGo Night'
+        name: 'RocketMap Night'
     })
     map.mapTypes.set('style_pgo_night', stylePgoNight)
 
@@ -395,18 +395,21 @@ function pokemonLabel(name, rarity, types, disappearTime, id, latitude, longitud
     var disappearDate = new Date(disappearTime)
     var rarityDisplay = rarity ? '(' + rarity + ')' : ''
     var typesDisplay = ''
+    var pMove1 = (moves[move1] !== undefined) ? i8ln(moves[move1]['name']) : 'gen/unknown'
+    var pMove2 = (moves[move2] !== undefined) ? i8ln(moves[move2]['name']) : 'gen/unknown'
+
     $.each(types, function (index, type) {
         typesDisplay += getTypeSpan(type)
     })
     var details = ''
     if (atk != null) {
-        var iv = (atk + def + sta) / 45 * 100
+        var iv = getIv(atk, def, sta)
         details = `
             <div>
                 IV: ${iv.toFixed(1)}% (${atk}/${def}/${sta})
             </div>
             <div>
-                Moves: ${i8ln(moves[move1]['name'])} / ${i8ln(moves[move2]['name'])}
+                Moves: ${pMove1} / ${pMove2}
             </div>
             `
     }
