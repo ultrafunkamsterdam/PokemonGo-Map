@@ -7,7 +7,6 @@ import shutil
 import logging
 import time
 import re
-import requests
 import ssl
 import json
 
@@ -21,7 +20,8 @@ from flask_cache_bust import init_cache_busting
 
 from pogom import config
 from pogom.app import Pogom
-from pogom.utils import get_args, now
+from pogom.utils import get_args, now, extract_sprites
+from pogom.altitude import get_gmaps_altitude
 
 from pogom.search import search_overseer_thread
 from pogom.models import (init_database, create_tables, drop_tables,
@@ -41,7 +41,7 @@ log = logging.getLogger()
 
 # Make sure pogom/pgoapi is actually removed if it is an empty directory.
 # This is a leftover directory from the time pgoapi was embedded in
-# PokemonGo-Map.
+# RocketMap.
 # The empty directory will cause problems with `import pgoapi` so it needs to
 # go.
 # Now also removes the pogom/libencrypt and pokecrypt-pgoapi folders,
@@ -154,6 +154,14 @@ def main():
                 '"npm install && npm run build" before starting the server.')
             sys.exit()
 
+        # You need custom image files now.
+        if not os.path.isfile(
+                os.path.join(os.path.dirname(__file__),
+                             'static/icons-sprite.png')):
+            log.info('Sprite files not present, extracting bundled ones...')
+            extract_sprites()
+            log.info('Done!')
+
     # These are very noisy, let's shush them up a bit.
     logging.getLogger('peewee').setLevel(logging.INFO)
     logging.getLogger('requests').setLevel(logging.WARNING)
@@ -189,15 +197,23 @@ def main():
     if position is None or not any(position):
         log.error("Location not found: '{}'".format(args.location))
         sys.exit()
+
     # Use the latitude and longitude to get the local altitude from Google.
-    try:
-        url = ('https://maps.googleapis.com/maps/api/elevation/json?' +
-               'locations={},{}').format(str(position[0]), str(position[1]))
-        altitude = requests.get(url).json()[u'results'][0][u'elevation']
+    (altitude, status) = get_gmaps_altitude(position[0], position[1],
+                                            args.gmaps_key)
+    if altitude is not None:
         log.debug('Local altitude is: %sm', altitude)
         position = (position[0], position[1], altitude)
-    except (requests.exceptions.RequestException, IndexError, KeyError):
-        log.error('Unable to retrieve altitude from Google APIs; setting to 0')
+    else:
+        if status == 'REQUEST_DENIED':
+            log.error(
+                'Google API Elevation request was denied. You probably ' +
+                'forgot to enable elevation api in https://console.' +
+                'developers.google.com/apis/api/elevation_backend/')
+            sys.exit()
+        else:
+            log.error('Unable to retrieve altitude from Google APIs' +
+                      'setting to 0')
 
     log.info('Parsed location is: %.4f/%.4f/%.4f (lat/lng/alt)',
              position[0], position[1], position[2])
@@ -215,6 +231,8 @@ def main():
     config['CHINA'] = args.china
 
     app = Pogom(__name__)
+    app.before_request(app.validate_request)
+
     db = init_database(app)
     if args.clear_db:
         log.info('Clearing database')

@@ -9,8 +9,13 @@ import json
 import logging
 import shutil
 import pprint
-import time
 import random
+import time
+import socket
+import struct
+import zipfile
+import requests
+from uuid import uuid4
 from s2sphere import CellId, LatLng
 
 from . import config
@@ -94,6 +99,19 @@ def get_args():
                         type=int, default=1)
     parser.add_argument('-l', '--location', type=parse_unicode,
                         help='Location, can be an address or coordinates.')
+    # Default based on the average elevation of cities around the world.
+    # Source: https://www.wikiwand.com/en/List_of_cities_by_elevation
+    parser.add_argument('-alt', '--altitude',
+                        help='Default altitude in meters.',
+                        type=int, default=507)
+    parser.add_argument('-altv', '--altitude-variance',
+                        help='Variance for --altitude in meters',
+                        type=int, default=1)
+    parser.add_argument('-uac', '--use-altitude-cache',
+                        help=('Query the Elevation API for each step,' +
+                              ' rather than only once, and store results in' +
+                              ' the database.'),
+                        action='store_true', default=False)
     parser.add_argument('-nj', '--no-jitter',
                         help=("Don't apply random -9m to +9m jitter to " +
                               "location."),
@@ -117,8 +135,19 @@ def get_args():
     parser.add_argument('-ck', '--captcha-key',
                         help='2Captcha API key.')
     parser.add_argument('-cds', '--captcha-dsk',
-                        help='PokemonGo captcha data-sitekey.',
+                        help='Pokemon Go captcha data-sitekey.',
                         default="6LeeTScTAAAAADqvhqVMhPpr_vB9D364Ia-1dSgK")
+    parser.add_argument('-mcd', '--manual-captcha-domain',
+                        help='Domain to where captcha tokens will be sent.',
+                        default="http://127.0.0.1:5000")
+    parser.add_argument('-mcr', '--manual-captcha-refresh',
+                        help='Time available before captcha page refreshes.',
+                        type=int, default=30)
+    parser.add_argument('-mct', '--manual-captcha-timeout',
+                        help='Maximum time captchas will wait for manual ' +
+                        'captcha solving. On timeout, if enabled, 2Captcha ' +
+                        'will be used to solve captcha. Default is 0.',
+                        type=int, default=0)
     parser.add_argument('-ed', '--encounter-delay',
                         help=('Time delay between encounter pokemon ' +
                               'in scan threads.'),
@@ -132,12 +161,20 @@ def get_args():
                                 action='append', default=[],
                                 help=('List of Pokemon to NOT encounter for ' +
                                       'more stats.'))
+    encounter_list.add_argument('-ewhtf', '--encounter-whitelist-file',
+                                default='', help='File containing a list of '
+                                                 'Pokemon to encounter for'
+                                                 ' more stats.')
+    encounter_list.add_argument('-eblkf', '--encounter-blacklist-file',
+                                default='', help='File containing a list of '
+                                                 'Pokemon to NOT encounter for'
+                                                 ' more stats.')
     parser.add_argument('-ld', '--login-delay',
                         help='Time delay between each login attempt.',
                         type=float, default=6)
     parser.add_argument('-lr', '--login-retries',
-                        help=('Number of login attempts before refreshing ' +
-                              'a thread.'),
+                        help=('Number of times to retry the login before ' +
+                              'refreshing a thread.'),
                         type=int, default=3)
     parser.add_argument('-mf', '--max-failures',
                         help=('Maximum number of failures to parse ' +
@@ -237,6 +274,10 @@ def get_args():
                         help=('Set a maximum speed in km/hour for scanner ' +
                               'movement.'),
                         type=int, default=35)
+    parser.add_argument('-ldur', '--lure-duration',
+                        help=('Change duration for lures set on pokestops. ' +
+                              'This is useful for events that extend lure ' +
+                              'duration.'), type=int, default=30)
     parser.add_argument('--dump-spawnpoints',
                         help=('Dump the spawnpoints from the db to json ' +
                               '(only for use with -ss).'),
@@ -302,13 +343,16 @@ def get_args():
                         help=('Number of webhook threads; increase if the ' +
                               'webhook queue falls behind.'),
                         type=int, default=1)
+    parser.add_argument('-whc', '--wh-concurrency',
+                        help=('Async requests pool size.'), type=int,
+                        default=25)
     parser.add_argument('-whr', '--wh-retries',
                         help=('Number of times to retry sending webhook ' +
                               'data on failure.'),
-                        type=int, default=5)
+                        type=int, default=3)
     parser.add_argument('-wht', '--wh-timeout',
                         help='Timeout (in seconds) for webhook requests.',
-                        type=int, default=2)
+                        type=float, default=1.0)
     parser.add_argument('-whbf', '--wh-backoff-factor',
                         help=('Factor (in seconds) by which the delay ' +
                               'until next retry will increase.'),
@@ -345,16 +389,26 @@ def get_args():
                         help=("Complete ToS and tutorial steps on accounts " +
                               "if they haven't already."),
                         default=False)
+    parser.add_argument('-novc', '--no-version-check', action='store_true',
+                        help='Disable API version check.',
+                        default=False)
+    parser.add_argument('-vci', '--version-check-interval', type=int,
+                        help='Interval to check API version in seconds ' +
+                        '(Default: in [60, 300]).',
+                        default=random.randint(60, 300))
     parser.add_argument('-el', '--encrypt-lib',
                         help=('Path to encrypt lib to be used instead of ' +
                               'the shipped ones.'))
     parser.add_argument('-odt', '--on-demand_timeout',
                         help=('Pause searching while web UI is inactive ' +
-                              'for this timeout(in seconds).'),
+                              'for this timeout (in seconds).'),
                         type=int, default=0)
+    parser.add_argument('--disable-blacklist',
+                        help=('Disable the global anti-scraper IP blacklist.'),
+                        action='store_true', default=False)
     verbosity = parser.add_mutually_exclusive_group()
     verbosity.add_argument('-v', '--verbose',
-                           help=('Show debug messages from PokemonGo-Map ' +
+                           help=('Show debug messages from RocketMap ' +
                                  'and pgoapi. Optionally specify file ' +
                                  'to log to.'),
                            nargs='?', const='nofile', default=False,
@@ -572,8 +626,19 @@ def get_args():
                   "--accountcsv to add accounts.")
             sys.exit(1)
 
-        args.encounter_blacklist = [int(i) for i in args.encounter_blacklist]
-        args.encounter_whitelist = [int(i) for i in args.encounter_whitelist]
+        if args.encounter_whitelist_file:
+            with open(args.encounter_whitelist_file) as f:
+                args.encounter_whitelist = [get_pokemon_id(name) for name in
+                                            f.read().splitlines()]
+        elif args.encounter_blacklist_file:
+            with open(args.encounter_blacklist_file) as f:
+                args.encounter_blacklist = [get_pokemon_id(name) for name in
+                                            f.read().splitlines()]
+        else:
+            args.encounter_blacklist = [int(i) for i in
+                                        args.encounter_blacklist]
+            args.encounter_whitelist = [int(i) for i in
+                                        args.encounter_whitelist]
 
         # Decide which scanning mode to use.
         if args.spawnpoint_scanning:
@@ -676,6 +741,19 @@ def get_pokemon_data(pokemon_id):
     return get_pokemon_data.pokemon[str(pokemon_id)]
 
 
+def get_pokemon_id(pokemon_name):
+    if not hasattr(get_pokemon_id, 'ids'):
+        if not hasattr(get_pokemon_data, 'pokemon'):
+            # initialize from file
+            get_pokemon_data(1)
+
+        get_pokemon_id.ids = {}
+        for pokemon_id, data in get_pokemon_data.pokemon.iteritems():
+            get_pokemon_id.ids[data['name']] = int(pokemon_id)
+
+    return get_pokemon_id.ids.get(pokemon_name, -1)
+
+
 def get_pokemon_name(pokemon_id):
     return i8ln(get_pokemon_data(pokemon_id)['name'])
 
@@ -715,7 +793,8 @@ def get_move_energy(move_id):
 
 
 def get_move_type(move_id):
-    return i8ln(get_moves_data(move_id)['type'])
+    move_type = get_moves_data(move_id)['type']
+    return {"type": i8ln(move_type), "type_en": move_type}
 
 
 class Timer():
@@ -736,142 +815,70 @@ class Timer():
         pprint.pprint(self.times)
 
 
-# Check if all important tutorial steps have been completed.
-# API argument needs to be a logged in API instance.
-def get_tutorial_state(api, account):
-    log.debug('Checking tutorial state for %s.', account['username'])
-    request = api.create_request()
-    request.get_player(
-        player_locale={'country': 'US',
-                       'language': 'en',
-                       'timezone': 'America/Denver'})
-
-    response = request.call().get('responses', {})
-
-    get_player = response.get('GET_PLAYER', {})
-    tutorial_state = get_player.get(
-        'player_data', {}).get('tutorial_state', [])
-    time.sleep(random.uniform(2, 4))
-    return tutorial_state
+def dottedQuadToNum(ip):
+    return struct.unpack("!L", socket.inet_aton(ip))[0]
 
 
-# Complete minimal tutorial steps.
-# API argument needs to be a logged in API instance.
-# TODO: Check if game client bundles these requests, or does them separately.
-def complete_tutorial(api, account, tutorial_state):
-    if 0 not in tutorial_state:
-        time.sleep(random.uniform(1, 5))
-        request = api.create_request()
-        request.mark_tutorial_complete(tutorials_completed=0)
-        log.debug('Sending 0 tutorials_completed for %s.', account['username'])
-        request.call()
+def get_blacklist():
+    try:
+        url = 'https://blist.devkat.org/blacklist.json'
+        blacklist = requests.get(url).json()
+        log.debug('Entries in blacklist: %s.', len(blacklist))
+        return blacklist
+    except (requests.exceptions.RequestException, IndexError, KeyError):
+        log.error('Unable to retrieve blacklist, setting to empty.')
+        return []
 
-    if 1 not in tutorial_state:
-        time.sleep(random.uniform(5, 12))
-        request = api.create_request()
-        request.set_avatar(player_avatar={
-            'hair': random.randint(1, 5),
-            'shirt': random.randint(1, 3),
-            'pants': random.randint(1, 2),
-            'shoes': random.randint(1, 6),
-            'avatar': random.randint(0, 1),
-            'eyes': random.randint(1, 4),
-            'backpack': random.randint(1, 5)
-        })
-        log.debug('Sending set random player character request for %s.',
-                  account['username'])
-        request.call()
 
-        time.sleep(random.uniform(0.3, 0.5))
+# Generate random device info.
+# Original by Noctem.
+IPHONES = {'iPhone5,1': 'N41AP',
+           'iPhone5,2': 'N42AP',
+           'iPhone5,3': 'N48AP',
+           'iPhone5,4': 'N49AP',
+           'iPhone6,1': 'N51AP',
+           'iPhone6,2': 'N53AP',
+           'iPhone7,1': 'N56AP',
+           'iPhone7,2': 'N61AP',
+           'iPhone8,1': 'N71AP',
+           'iPhone8,2': 'N66AP',
+           'iPhone8,4': 'N69AP',
+           'iPhone9,1': 'D10AP',
+           'iPhone9,2': 'D11AP',
+           'iPhone9,3': 'D101AP',
+           'iPhone9,4': 'D111AP'}
 
-        request = api.create_request()
-        request.mark_tutorial_complete(tutorials_completed=1)
-        log.debug('Sending 1 tutorials_completed for %s.', account['username'])
-        request.call()
 
-    time.sleep(random.uniform(0.5, 0.6))
-    request = api.create_request()
-    request.get_player_profile()
-    log.debug('Fetching player profile for %s...', account['username'])
-    request.call()
+def generate_device_info():
+    device_info = {'device_brand': 'Apple', 'device_model': 'iPhone',
+                   'hardware_manufacturer': 'Apple',
+                   'firmware_brand': 'iPhone OS'}
+    devices = tuple(IPHONES.keys())
 
-    starter_id = None
-    if 3 not in tutorial_state:
-        time.sleep(random.uniform(1, 1.5))
-        request = api.create_request()
-        request.get_download_urls(asset_id=[
-            '1a3c2816-65fa-4b97-90eb-0b301c064b7a/1477084786906000',
-            'aa8f7687-a022-4773-b900-3a8c170e9aea/1477084794890000',
-            'e89109b0-9a54-40fe-8431-12f7826c8194/1477084802881000'])
-        log.debug('Grabbing some game assets.')
-        request.call()
+    ios8 = ('8.0', '8.0.1', '8.0.2', '8.1', '8.1.1',
+            '8.1.2', '8.1.3', '8.2', '8.3', '8.4', '8.4.1')
+    ios9 = ('9.0', '9.0.1', '9.0.2', '9.1', '9.2', '9.2.1',
+            '9.3', '9.3.1', '9.3.2', '9.3.3', '9.3.4', '9.3.5')
+    ios10 = ('10.0', '10.0.1', '10.0.2', '10.0.3', '10.1', '10.1.1')
 
-        time.sleep(random.uniform(1, 1.6))
-        request = api.create_request()
-        request.call()
+    device_info['device_model_boot'] = random.choice(devices)
+    device_info['hardware_model'] = IPHONES[device_info['device_model_boot']]
+    device_info['device_id'] = uuid4().hex
 
-        time.sleep(random.uniform(6, 13))
-        request = api.create_request()
-        starter = random.choice((1, 4, 7))
-        request.encounter_tutorial_complete(pokemon_id=starter)
-        log.debug('Catching the starter for %s.', account['username'])
-        request.call()
+    if device_info['hardware_model'] in ('iPhone9,1', 'iPhone9,2',
+                                         'iPhone9,3', 'iPhone9,4'):
+        device_info['firmware_type'] = random.choice(ios10)
+    elif device_info['hardware_model'] in ('iPhone8,1', 'iPhone8,2',
+                                           'iPhone8,4'):
+        device_info['firmware_type'] = random.choice(ios9 + ios10)
+    else:
+        device_info['firmware_type'] = random.choice(ios8 + ios9 + ios10)
 
-        time.sleep(random.uniform(0.5, 0.6))
-        request = api.create_request()
-        request.get_player(
-            player_locale={
-                'country': 'US',
-                'language': 'en',
-                'timezone': 'America/Denver'})
-        responses = request.call().get('responses', {})
+    return device_info
 
-        inventory = responses.get('GET_INVENTORY', {}).get(
-            'inventory_delta', {}).get('inventory_items', [])
-        for item in inventory:
-            pokemon = item.get('inventory_item_data', {}).get('pokemon_data')
-            if pokemon:
-                starter_id = pokemon.get('id')
 
-    if 4 not in tutorial_state:
-        time.sleep(random.uniform(5, 12))
-        request = api.create_request()
-        request.claim_codename(codename=account['username'])
-        log.debug('Claiming codename for %s.', account['username'])
-        request.call()
-
-        time.sleep(random.uniform(1, 1.3))
-        request = api.create_request()
-        request.mark_tutorial_complete(tutorials_completed=4)
-        log.debug('Sending 4 tutorials_completed for %s.', account['username'])
-        request.call()
-
-        time.sleep(0.1)
-        request = api.create_request()
-        request.get_player(
-            player_locale={
-                'country': 'US',
-                'language': 'en',
-                'timezone': 'America/Denver'})
-        request.call()
-
-    if 7 not in tutorial_state:
-        time.sleep(random.uniform(4, 10))
-        request = api.create_request()
-        request.mark_tutorial_complete(tutorials_completed=7)
-        log.debug('Sending 7 tutorials_completed for %s.', account['username'])
-        request.call()
-
-    if starter_id:
-        time.sleep(random.uniform(3, 5))
-        request = api.create_request()
-        request.set_buddy_pokemon(pokemon_id=starter_id)
-        log.debug('Setting buddy pokemon for %s.', account['username'])
-        request.call()
-        time.sleep(random.uniform(0.8, 1.8))
-
-    # Sleeping before we start scanning to avoid Niantic throttling.
-    log.debug('And %s is done. Wait for a second, to avoid throttle.',
-              account['username'])
-    time.sleep(random.uniform(2, 4))
-    return True
+def extract_sprites():
+    log.debug("Extracting sprites...")
+    zip = zipfile.ZipFile('static01.zip', 'r')
+    zip.extractall('static')
+    zip.close()

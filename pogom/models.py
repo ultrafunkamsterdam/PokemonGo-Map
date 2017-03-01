@@ -10,18 +10,21 @@ import gc
 import time
 import geopy
 import math
-from peewee import SqliteDatabase, InsertQuery, \
+from peewee import InsertQuery, \
     Check, CompositeKey, ForeignKeyField, \
-    IntegerField, CharField, DoubleField, BooleanField, \
-    DateTimeField, fn, DeleteQuery, FloatField, SQL, TextField, JOIN
+    SmallIntegerField, IntegerField, CharField, DoubleField, BooleanField, \
+    DateTimeField, fn, DeleteQuery, FloatField, SQL, TextField, JOIN, \
+    OperationalError
 from playhouse.flask_utils import FlaskDB
 from playhouse.pool import PooledMySQLDatabase
-from playhouse.shortcuts import RetryOperationalError
+from playhouse.shortcuts import RetryOperationalError, case
 from playhouse.migrate import migrate, MySQLMigrator, SqliteMigrator
+from playhouse.sqlite_ext import SqliteExtDatabase
 from datetime import datetime, timedelta
 from base64 import b64encode
 from cachetools import TTLCache
 from cachetools import cached
+from timeit import default_timer
 
 from . import config
 from .utils import get_pokemon_name, get_pokemon_rarity, get_pokemon_types, \
@@ -35,7 +38,7 @@ args = get_args()
 flaskDb = FlaskDB()
 cache = TTLCache(maxsize=100, ttl=60 * 5)
 
-db_schema_version = 12
+db_schema_version = 15
 
 
 class MyRetryDB(RetryOperationalError, PooledMySQLDatabase):
@@ -58,8 +61,13 @@ def init_database(app):
             max_connections=connections,
             stale_timeout=300)
     else:
-        log.info('Connecting to local SQLite database...')
-        db = SqliteDatabase(args.db)
+        log.info('Connecting to local SQLite database')
+        db = SqliteExtDatabase(args.db,
+                               pragmas=(
+                                   ('journal_mode', 'WAL'),
+                                   ('mmap_size', 1024 * 1024 * 32),
+                                   ('cache_size', 10000),
+                                   ('journal_size_limit', 1024 * 1024 * 4),))
 
     app.config['DATABASE'] = db
     flaskDb.init_app(app)
@@ -94,6 +102,9 @@ class Pokemon(BaseModel):
     individual_stamina = IntegerField(null=True)
     move_1 = IntegerField(null=True)
     move_2 = IntegerField(null=True)
+    weight = FloatField(null=True)
+    height = FloatField(null=True)
+    gender = SmallIntegerField(null=True)
     last_modified = DateTimeField(
         null=True, index=True, default=datetime.utcnow)
 
@@ -602,6 +613,7 @@ class Gym(BaseModel):
                        .where(GymMember.gym_id << gym_ids)
                        .where(GymMember.last_scanned > Gym.last_modified)
                        .order_by(GymMember.gym_id, GymPokemon.cp)
+                       .distinct()
                        .dicts())
 
             for p in pokemon:
@@ -664,6 +676,7 @@ class Gym(BaseModel):
                    .where(GymMember.gym_id == id)
                    .where(GymMember.last_scanned > Gym.last_modified)
                    .order_by(GymPokemon.cp.desc())
+                   .distinct()
                    .dicts())
 
         for p in pokemon:
@@ -682,6 +695,51 @@ class Gym(BaseModel):
             result['pokemon'].append(p)
 
         return result
+
+
+class LocationAltitude(BaseModel):
+    cellid = CharField(primary_key=True, max_length=50)
+    latitude = DoubleField()
+    longitude = DoubleField()
+    last_modified = DateTimeField(index=True, default=datetime.utcnow,
+                                  null=True)
+    altitude = DoubleField()
+
+    class Meta:
+        indexes = ((('latitude', 'longitude'), False),)
+
+    # DB format of a new location altitude
+    @staticmethod
+    def new_loc(loc, altitude):
+        return {'cellid': cellid(loc),
+                'latitude': loc[0],
+                'longitude': loc[1],
+                'altitude': altitude}
+
+    # find a nearby altitude from the db
+    # looking for one within 140m
+    @classmethod
+    def get_nearby_altitude(cls, loc):
+        n, e, s, w = hex_bounds(loc, radius=0.14)  # 140m
+
+        # Get all location altitudes in that box.
+        query = (cls
+                 .select()
+                 .where((cls.latitude <= n) &
+                        (cls.latitude >= s) &
+                        (cls.longitude >= w) &
+                        (cls.longitude <= e))
+                 .dicts())
+
+        altitude = None
+        if len(list(query)):
+            altitude = query[0]['altitude']
+
+        return altitude
+
+    @classmethod
+    def save_altitude(cls, loc, altitude):
+        InsertQuery(cls, rows=[cls.new_loc(loc, altitude)]).upsert().execute()
 
 
 class ScannedLocation(BaseModel):
@@ -799,16 +857,10 @@ class ScannedLocation(BaseModel):
                 'step': scan['step'], 'sp': sp_id}
 
     @classmethod
-    def get_by_locs(cls, locs):
-        lats, lons = [], []
-        for loc in locs:
-            lats.append(loc[0])
-            lons.append(loc[1])
-
+    def get_by_cellids(cls, cellids):
         query = (cls
                  .select()
-                 .where((ScannedLocation.latitude << lats) &
-                        (ScannedLocation.longitude << lons))
+                 .where(cls.cellid << cellids)
                  .dicts())
 
         d = {}
@@ -828,8 +880,7 @@ class ScannedLocation(BaseModel):
     def get_by_loc(cls, loc):
         query = (cls
                  .select()
-                 .where((ScannedLocation.latitude == loc[0]) &
-                        (ScannedLocation.longitude == loc[1]))
+                 .where(cls.cellid == cellid(loc))
                  .dicts())
 
         return query[0] if len(list(query)) else cls.new_loc(loc)
@@ -869,12 +920,12 @@ class ScannedLocation(BaseModel):
 
     # Return list of dicts for upcoming valid band times.
     @classmethod
-    def get_cell_to_linked_spawn_points(cls, cells):
+    def get_cell_to_linked_spawn_points(cls, cellids):
         query = (SpawnPoint
                  .select(SpawnPoint, cls.cellid)
                  .join(ScanSpawnPoint)
                  .join(cls)
-                 .where(cls.cellid << cells).dicts())
+                 .where(cls.cellid << cellids).dicts())
         l = list(query)
         ret = {}
         for item in l:
@@ -974,14 +1025,16 @@ class ScannedLocation(BaseModel):
         return scan
 
     @classmethod
-    def bands_filled(cls, locations):
-        filled = 0
-        for e in locations:
-            sl = cls.get_by_loc(e[1])
-            bands = [sl['band' + str(i)] for i in range(1, 6)]
-            filled += reduce(lambda x, y: x + (y > -1), bands, 0)
-
-        return filled
+    def get_bands_filled_by_cellids(cls, cellids):
+        return int(cls
+                   .select(fn.SUM(case(cls.band1, ((-1, 0),), 1)
+                                  + case(cls.band2, ((-1, 0),), 1)
+                                  + case(cls.band3, ((-1, 0),), 1)
+                                  + case(cls.band4, ((-1, 0),), 1)
+                                  + case(cls.band5, ((-1, 0),), 1))
+                           .alias('band_count'))
+                   .where(cls.cellid << cellids)
+                   .scalar() or 0)
 
     @classmethod
     def reset_bands(cls, scan_loc):
@@ -1034,6 +1087,28 @@ class MainWorker(BaseModel):
     message = TextField(null=True, default="")
     method = CharField(max_length=50)
     last_modified = DateTimeField(index=True)
+    accounts_working = IntegerField()
+    accounts_captcha = IntegerField()
+    accounts_failed = IntegerField()
+
+    @staticmethod
+    def get_total_captchas():
+        return MainWorker.select(fn.SUM(MainWorker.accounts_captcha)).scalar()
+
+    @staticmethod
+    def get_account_stats():
+        account_stats = (MainWorker
+                         .select(fn.SUM(MainWorker.accounts_working),
+                                 fn.SUM(MainWorker.accounts_captcha),
+                                 fn.SUM(MainWorker.accounts_failed))
+                         .scalar(as_tuple=True))
+        dict = {'working': 0, 'captcha': 0, 'failed': 0}
+        if account_stats[0] is not None:
+            dict = {'working': int(account_stats[0]),
+                    'captcha': int(account_stats[1]),
+                    'failed': int(account_stats[2])}
+
+        return dict
 
 
 class WorkerStatus(BaseModel):
@@ -1043,7 +1118,7 @@ class WorkerStatus(BaseModel):
     fail = IntegerField()
     no_items = IntegerField()
     skip = IntegerField()
-    captcha = IntegerField(default=0)
+    captcha = IntegerField()
     last_modified = DateTimeField(index=True)
     message = CharField(max_length=255)
     last_scan_date = DateTimeField(index=True)
@@ -1108,7 +1183,7 @@ class WorkerStatus(BaseModel):
                 break
             except Exception as e:
                 log.error('Exception in get_worker under account {}.  '
-                          'Exception message: {}'.format(username, e))
+                          'Exception message: {}'.format(username, repr(e)))
                 traceback.print_exc(file=sys.stdout)
                 time.sleep(1)
 
@@ -1561,6 +1636,39 @@ class GymDetails(BaseModel):
     last_scanned = DateTimeField(default=datetime.utcnow)
 
 
+class Token(flaskDb.Model):
+    token = TextField()
+    last_updated = DateTimeField(default=datetime.utcnow)
+
+    @staticmethod
+    def get_valid(limit=15):
+        # Make sure we don't grab more than we can process
+        if limit > 15:
+            limit = 15
+        valid_time = datetime.utcnow() - timedelta(seconds=30)
+        token_ids = []
+        tokens = []
+        try:
+            with flaskDb.database.transaction():
+                query = (Token
+                         .select()
+                         .where(Token.last_updated > valid_time)
+                         .order_by(Token.last_updated.asc())
+                         .limit(limit))
+                for t in query:
+                    token_ids.append(t.id)
+                    tokens.append(t.token)
+                if tokens:
+                    log.debug('Retrived Token IDs: {}'.format(token_ids))
+                    result = DeleteQuery(Token).where(
+                        Token.id << token_ids).execute()
+                    log.debug('Deleted {} tokens.'.format(result))
+        except OperationalError as e:
+            log.error('Failed captcha token transactional query: {}'.format(e))
+
+        return tokens
+
+
 def hex_bounds(center, steps=None, radius=None):
     # Make a box that is (70m * step_limit * 2) + 70m away from the
     # center point.  Rationale is that you need to travel.
@@ -1606,15 +1714,12 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
     # If there are no wild or nearby Pokemon . . .
     if not wild_pokemon and not nearby_pokemon:
         # . . . and there are no gyms/pokestops then it's unusable/bad.
+        abandon_loc = False
+
         if not forts:
             log.warning('Bad scan. Parsing found absolutely nothing.')
             log.info('Common causes: captchas or IP bans.')
-            return {
-                'count': 0,
-                'gyms': gyms,
-                'spawn_points': spawn_points,
-                'bad_scan': True
-            }
+            abandon_loc = True
         else:
             # No wild or nearby Pokemon but there are forts.  It's probably
             # a speed violation.
@@ -1623,12 +1728,19 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
             if not (config['parse_pokestops'] or config['parse_gyms']):
                 # If we're not going to parse the forts, then we'll just
                 # exit here.
-                return {
-                    'count': 0,
-                    'gyms': gyms,
-                    'spawn_points': spawn_points,
-                    'bad_scan': True
-                }
+                abandon_loc = True
+
+        if abandon_loc:
+            scan_loc = ScannedLocation.get_by_loc(step_location)
+            ScannedLocation.update_band(scan_loc)
+            db_update_queue.put((ScannedLocation, {0: scan_loc}))
+
+            return {
+                'count': 0,
+                'gyms': gyms,
+                'spawn_points': spawn_points,
+                'bad_scan': True
+            }
 
     scan_loc = ScannedLocation.get_by_loc(step_location)
     done_already = scan_loc['done']
@@ -1760,7 +1872,10 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                 'individual_defense': None,
                 'individual_stamina': None,
                 'move_1': None,
-                'move_2': None
+                'move_2': None,
+                'height': None,
+                'weight': None,
+                'gender': None
             }
 
             if (encounter_result is not None and 'wild_pokemon'
@@ -1776,6 +1891,9 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                         'individual_stamina', 0),
                     'move_1': pokemon_info['move_1'],
                     'move_2': pokemon_info['move_2'],
+                    'height': pokemon_info['height_m'],
+                    'weight': pokemon_info['weight_kg'],
+                    'gender': pokemon_info['pokemon_display']['gender'],
                 })
 
             if args.webhooks:
@@ -1785,7 +1903,11 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                     'disappear_time': calendar.timegm(
                         disappear_time.timetuple()),
                     'last_modified_time': p['last_modified_timestamp_ms'],
-                    'time_until_hidden_ms': p['time_till_hidden_ms']
+                    'time_until_hidden_ms': p['time_till_hidden_ms'],
+                    'verified': SpawnPoint.tth_found(sp),
+                    'seconds_until_despawn': seconds_until_despawn,
+                    'spawn_start': start_end[0],
+                    'spawn_end': start_end[1]
                 })
                 wh_update_queue.put(('pokemon', wh_poke))
 
@@ -1806,7 +1928,7 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                 if 'active_fort_modifier' in f:
                     lure_expiration = (datetime.utcfromtimestamp(
                         f['last_modified_timestamp_ms'] / 1000.0) +
-                        timedelta(minutes=30))
+                        timedelta(minutes=args.lure_duration))
                     active_fort_modifier = f['active_fort_modifier']
                     if args.webhooks and args.webhook_updates_only:
                         wh_update_queue.put(('pokestop', {
@@ -2107,26 +2229,31 @@ def db_updater(args, q, db):
                     flaskDb.connect_db()
                     break
                 except Exception as e:
-                    log.warning('%s... Retrying...', e)
+                    log.warning('%s... Retrying...', repr(e))
                     time.sleep(5)
 
             # Loop the queue.
             while True:
+                last_upsert = default_timer()
                 model, data = q.get()
+
                 bulk_upsert(model, data, db)
                 q.task_done()
+
                 log.debug('Upserted to %s, %d records (upsert queue '
-                          'remaining: %d).',
+                          'remaining: %d) in %.2f seconds.',
                           model.__name__,
                           len(data),
-                          q.qsize())
+                          q.qsize(),
+                          default_timer() - last_upsert)
+
                 if q.qsize() > 50:
                     log.warning(
                         "DB queue is > 50 (@%d); try increasing --db-threads.",
                         q.qsize())
 
         except Exception as e:
-            log.exception('Exception in db_updater: %s', e)
+            log.exception('Exception in db_updater: %s', repr(e))
             time.sleep(5)
 
 
@@ -2151,6 +2278,13 @@ def clean_db_loop(args):
                      .where(Pokestop.lure_expiration < datetime.utcnow()))
             query.execute()
 
+            # Remove old (unusable) captcha tokens
+            query = (Token
+                     .delete()
+                     .where((Token.last_updated <
+                             (datetime.utcnow() - timedelta(minutes=2)))))
+            query.execute()
+
             # If desired, clear old Pokemon spawns.
             if args.purge_data > 0:
                 query = (Pokemon
@@ -2163,7 +2297,7 @@ def clean_db_loop(args):
             log.info('Regular database cleaning complete.')
             time.sleep(60)
         except Exception as e:
-            log.exception('Exception in clean_db_loop: %s', e)
+            log.exception('Exception in clean_db_loop: %s', repr(e))
 
 
 def bulk_upsert(cls, data, db):
@@ -2171,45 +2305,48 @@ def bulk_upsert(cls, data, db):
     i = 0
 
     if args.db_type == 'mysql':
-        step = 120
+        step = 250
     else:
         # SQLite has a default max number of parameters of 999,
         # so we need to limit how many rows we insert for it.
         step = 50
 
-    while i < num_rows:
-        log.debug('Inserting items %d to %d.', i, min(i + step, num_rows))
-        try:
-            # Turn off FOREIGN_KEY_CHECKS on MySQL, because it apparently is
-            # unable to recognize strings to update unicode keys for
-            # foriegn key fields, thus giving lots of foreign key constraint
-            # errors.
-            if args.db_type == 'mysql':
-                db.execute_sql('SET FOREIGN_KEY_CHECKS=0;')
+    with db.atomic():
+        while i < num_rows:
+            log.debug('Inserting items %d to %d.', i, min(i + step, num_rows))
+            try:
+                # Turn off FOREIGN_KEY_CHECKS on MySQL, because apparently it's
+                # unable to recognize strings to update unicode keys for
+                # foreign key fields, thus giving lots of foreign key
+                # constraint errors.
+                if args.db_type == 'mysql':
+                    db.execute_sql('SET FOREIGN_KEY_CHECKS=0;')
 
-            InsertQuery(cls, rows=data.values()[
-                        i:min(i + step, num_rows)]).upsert().execute()
+                # Use peewee's own implementation of the insert_many() method.
+                InsertQuery(cls, rows=data.values()[
+                            i:min(i + step, num_rows)]).upsert().execute()
 
-            if args.db_type == 'mysql':
-                db.execute_sql('SET FOREIGN_KEY_CHECKS=1;')
+                if args.db_type == 'mysql':
+                    db.execute_sql('SET FOREIGN_KEY_CHECKS=1;')
 
-        except Exception as e:
-            # If there is a DB table constraint error, dump the data and don't
-            # retry.
-            #
-            # Unrecoverable error strings:
-            unrecoverable = ['constraint', 'has no attribute',
-                             'peewee.IntegerField object at']
-            has_unrecoverable = filter(lambda x: x in str(e), unrecoverable)
-            if has_unrecoverable:
-                log.warning('%s. Data is:', e)
-                log.warning(data.items())
-            else:
-                log.warning('%s... Retrying...', e)
-                time.sleep(1)
-                continue
+            except Exception as e:
+                # If there is a DB table constraint error, dump the data and
+                # don't retry.
+                #
+                # Unrecoverable error strings:
+                unrecoverable = ['constraint', 'has no attribute',
+                                 'peewee.IntegerField object at']
+                has_unrecoverable = filter(
+                    lambda x: x in str(e), unrecoverable)
+                if has_unrecoverable:
+                    log.warning('%s. Data is:', repr(e))
+                    log.warning(data.items())
+                else:
+                    log.warning('%s... Retrying...', repr(e))
+                    time.sleep(1)
+                    continue
 
-        i += step
+            i += step
 
 
 def create_tables(db):
@@ -2217,8 +2354,8 @@ def create_tables(db):
     verify_database_schema(db)
     db.create_tables([Pokemon, Pokestop, Gym, ScannedLocation, GymDetails,
                       GymMember, GymPokemon, Trainer, MainWorker, WorkerStatus,
-                      SpawnPoint, ScanSpawnPoint, SpawnpointDetectionData],
-                     safe=True)
+                      SpawnPoint, ScanSpawnPoint, SpawnpointDetectionData,
+                      Token, LocationAltitude], safe=True)
     db.close()
 
 
@@ -2227,7 +2364,8 @@ def drop_tables(db):
     db.drop_tables([Pokemon, Pokestop, Gym, ScannedLocation, Versions,
                     GymDetails, GymMember, GymPokemon, Trainer, MainWorker,
                     WorkerStatus, SpawnPoint, ScanSpawnPoint,
-                    SpawnpointDetectionData, Versions], safe=True)
+                    SpawnpointDetectionData, LocationAltitude,
+                    Token, Versions], safe=True)
     db.close()
 
 
@@ -2345,9 +2483,26 @@ def database_migrate(db, old_ver):
 
         db.drop_tables([ScanSpawnPoint])
 
-    if old_ver < 12:
+    if old_ver < 13:
+
+        db.drop_tables([WorkerStatus])
         db.drop_tables([MainWorker])
+
+    if old_ver < 14:
         migrate(
-            migrator.add_column('workerstatus', 'captcha',
-                                IntegerField(default=0))
+            migrator.add_column('pokemon', 'weight',
+                                DoubleField(null=True, default=0)),
+            migrator.add_column('pokemon', 'height',
+                                DoubleField(null=True, default=0)),
+            migrator.add_column('pokemon', 'gender',
+                                IntegerField(null=True, default=0))
         )
+
+    if old_ver < 15:
+        # we don't have to touch sqlite because it has REAL and INTEGER only
+        if args.db_type == 'mysql':
+            db.execute_sql('ALTER TABLE `pokemon` '
+                           'MODIFY COLUMN `weight` FLOAT NULL DEFAULT NULL,'
+                           'MODIFY COLUMN `height` FLOAT NULL DEFAULT NULL,'
+                           'MODIFY COLUMN `gender` SMALLINT NULL DEFAULT NULL'
+                           ';')
