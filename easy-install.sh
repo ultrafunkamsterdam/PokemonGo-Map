@@ -7,11 +7,17 @@
 #=========*=========*=========*=========*=========*
 #
 #   install.sh
+#   This script is meant to be run stand-alone! You do NOT need to clone this repo first. You can download just this file and execute it.
+#   You can specify what PokemonGo-Maps Repository you want below this block. 
+#   Added awesome new sprites, much better then those ugly default sprites. Check them out at https://pokemaplive.nl or here
+#   https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/flat-icons/static/flat-sh-tr-icons-large-sprite.png
+#   The icons will be added by default, and if you do not want to use them, you should modify static/map.common.js and set :
+#   var flaticons = false;    default (true)
  
 
   PRETTYNAME="PogoMaps Install"
   REPOURL="https://github.com/RocketMap/RocketMap/"  ## or https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/
-  branch="develop"  ## choose life choose a job choose a career choose a family, choose branch!
+  BRANCH="develop"  ## choose life choose a job choose a career choose a family, choose branch!
   PID=$$
  
   THISPATH=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
@@ -158,12 +164,13 @@
     [[ ! -z "$INSTALLDIR" ]] && mkdir $INSTALLDIR || INSTALLDIR=/home/$USER/PokemonGo-Maps ; SL 2
     git clone --recursive $REPOURL $INSTALLDIR ; SL 2
     VirtualEnv || { echo 'you need to install virtualenv for this to work (sudo apt-get install python-virtualenv)' ; exit $ERRCODE ; }
-    git checkout "$branch" ; SL 2
+    git checkout "$BRANCH" ; SL 2
     git submodule init && git submodule update ; SL 2
     pip install -r requirements.txt
     ReqMan check unzip wget
     wget https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/raw/develop/static.zip
     unzip -o static.zip
+    wget -P static/ https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/flat-icons/static/flat-sh-tr-icons-large-sprite.png 
     if [ $? -ge 1 ]; then
     echo -e "Unzipping failed! Exiting script now ... " ; SL 2 ; exit -1
     else
