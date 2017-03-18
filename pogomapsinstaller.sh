@@ -9,6 +9,8 @@
 #   install.sh  |  IMPORTANT : READ THIS FIRST!
 #    
 #   This script is meant to be run stand-alone! You do NOT need to clone this repo first. You can download just this file and execute it.
+#   You should download the raw file and not the url of the current page!!! 
+#   download: https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/develop/pogomapsinstaller.sh
 #   You can specify what PokemonGo-Maps Repository you want below this block. 
 #   Added awesome new sprites, much better then those ugly default sprites. Check them out at https://pokemaplive.nl or here
 #   https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/flat-icons/static/flat-sh-tr-icons-large-sprite.png
