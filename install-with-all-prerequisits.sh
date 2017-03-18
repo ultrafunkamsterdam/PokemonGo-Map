@@ -66,7 +66,8 @@ echo -e "\n\tDONE INSTALLING PREREQUISITS" && sleep 4
 echo -e "\n\tNow we are going to install PokemonGo-Map with Hash Server support." && sleep 4
 echo -e -n "\n\n\tHERE WE GO AGAIN!" && for i in {10..30};do echo -e -n "." ;((i++));sleep 0.1;done
 
-[[ -f easy-install.sh ]] && rm easy-install.sh
-wget https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/flat-icons/pogomapsinstaller.sh && sudo chmod 755 pogomapsinstaller.sh
+[[ -f pogomapsinstaller.sh ]] && rm -f pogomapsinstaller.sh
+wget https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/develop/pogomapsinstaller.sh && sudo chmod 755 pogomapsinstaller.sh
 bash ./pogomapsinstaller.sh
+
 
