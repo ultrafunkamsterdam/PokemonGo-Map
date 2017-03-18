@@ -1,5 +1,7 @@
 /*eslint no-unused-vars: "off"*/
 
+var flatSprites = true;   //CHANGE THIS TO FALSE TO USE THE UGLY ORIGINAL ICONS
+
 var noLabelsStyle = [{
     featureType: 'poi',
     elementType: 'labels',
@@ -788,14 +790,27 @@ var pGoStyleNight = [{
     }]
 }]
 
-var pokemonSprites = {
-    columns: 28,
-    iconWidth: 80,
-    iconHeight: 80,
-    spriteWidth: 2240,
-    spriteHeight: 1440,
-    filename: 'static/icons-large-sprite.png',
-    name: 'High-Res'
+if (flatSprites) {
+     var pokemonSprites = {
+        columns: 7,
+        iconWidth: 65,
+        iconHeight: 65,
+        spriteWidth: 455,
+        spriteHeight: 2340,
+        filename: "static/icons-large-sprite-flat-saturated.png",
+        name: "High-Res"
+    }
+  
+}else{
+     var pokemonSprites = {
+        columns: 28,
+        iconWidth: 80,
+        iconHeight: 80,
+        spriteWidth: 2240,
+        spriteHeight: 1440,
+        filename: 'static/icons-large-sprite.png',
+        name: 'High-Res'
+    }
 }
 
 //
