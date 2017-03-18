@@ -1,23 +1,24 @@
 #!/usr/bin/env bash
 #
 #=========*=========*=========*=========*=========*
-#   PokemonGo-Map Easy Installer
+#   PokemonGo-Map installer from scratch. This is the only file you need !
 #   Author : UltrafunkAmsterdam
 #   https://www.github.com/UltrafunkAmsterdam
 #=========*=========*=========*=========*=========*
 #
-#   install.sh
+#   install.sh  |  IMPORTANT : READ THIS FIRST!
+#    
 #   This script is meant to be run stand-alone! You do NOT need to clone this repo first. You can download just this file and execute it.
 #   You can specify what PokemonGo-Maps Repository you want below this block. 
 #   Added awesome new sprites, much better then those ugly default sprites. Check them out at https://pokemaplive.nl or here
 #   https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/flat-icons/static/flat-sh-tr-icons-large-sprite.png
 #   The icons will be added by default, and if you do not want to use them, you should modify static/map.common.js and set :
 #   var flaticons = false;    default (true)
- 
+# 
 
-  PRETTYNAME="PogoMaps Install"
-  REPOURL="https://github.com/RocketMap/RocketMap/"  ## or https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/
-  BRANCH="develop"  ## choose life choose a job choose a career choose a family, choose branch!
+  
+  REPOURL="https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2"  ## or https://github.com/RocketMap/RocketMap
+  BRANCH="flat-icons"  ## choose life choose a job choose a career choose a family, choose branch!  (for rocketmap set to "develop")
   PID=$$
  
   THISPATH=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
@@ -42,7 +43,7 @@
   Whi='\e[0;37m';     BWhi='\e[1;37m';    UWhi='\e[4;37m';    IWhi='\e[0;97m';    BIWhi='\e[1;97m';   On_Whi='\e[47m';    On_IWhi='\e[0;107m';
    
   Logger(){
- 
+    PRETTYNAME="PogoMaps Install"
     LOGTYPE="$1"
     MESSAGE="$2"
     #Logger Templates
