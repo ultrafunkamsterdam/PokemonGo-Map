@@ -878,11 +878,11 @@ var StoreOptions = {
         type: StoreTypes.JSON
     },
     'remember_text_perfection_notify': {
-        default: '',
+        default: '95',
         type: StoreTypes.Number
     },
     'showGyms': {
-        default: false,
+        default: true,
         type: StoreTypes.Boolean
     },
     'useGymSidebar': {
@@ -890,7 +890,7 @@ var StoreOptions = {
         type: StoreTypes.Boolean
     },
     'showOpenGymsOnly': {
-        default: 0,
+        default: 1,
         type: StoreTypes.Number
     },
     'showTeamGymsOnly': {
@@ -918,7 +918,7 @@ var StoreOptions = {
         type: StoreTypes.Boolean
     },
     'showLuredPokestopsOnly': {
-        default: 0,
+        default: 1,
         type: StoreTypes.Number
     },
     'showScanned': {
@@ -942,7 +942,7 @@ var StoreOptions = {
         type: StoreTypes.Boolean
     },
     'lockMarker': {
-        default: isTouchDevice(), // default to true if touch device
+        default: true, //isTouchDevice(), // default to true if touch device
         type: StoreTypes.Boolean
     },
     'startAtUserLocation': {
@@ -974,11 +974,11 @@ var StoreOptions = {
         type: StoreTypes.Number
     },
     'searchMarkerStyle': {
-        default: 'google',
+        default: 'none',
         type: StoreTypes.String
     },
     'locationMarkerStyle': {
-        default: 'none',
+        default: 'google',
         type: StoreTypes.String
     },
     'gymMarkerStyle': {
@@ -986,7 +986,7 @@ var StoreOptions = {
         type: StoreTypes.String
     },
     'zoomLevel': {
-        default: 16,
+        default: 15,
         type: StoreTypes.Number
     }
 }
