@@ -797,7 +797,7 @@ if (flatSprites) {
         iconHeight: 65,
         spriteWidth: 455,
         spriteHeight: 2340,
-        filename: "static/icons-large-sprite-flat-saturated.png",
+        filename: "static/flat-sh-tr-icons-large-sprite.png",
         name: "High-Res"
     }
   
