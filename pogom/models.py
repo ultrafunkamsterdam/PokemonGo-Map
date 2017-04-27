@@ -40,7 +40,7 @@ args = get_args()
 flaskDb = FlaskDB()
 cache = TTLCache(maxsize=100, ttl=60 * 5)
 
-db_schema_version = 16
+db_schema_version = 17
 
 
 class MyRetryDB(RetryOperationalError, PooledMySQLDatabase):
@@ -107,6 +107,7 @@ class Pokemon(BaseModel):
     weight = FloatField(null=True)
     height = FloatField(null=True)
     gender = SmallIntegerField(null=True)
+    form = SmallIntegerField(null=True)
     last_modified = DateTimeField(
         null=True, index=True, default=datetime.utcnow)
 
@@ -1795,6 +1796,7 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
         if i == 0:
             now_date = datetime.utcfromtimestamp(
                 cell['current_timestamp_ms'] / 1000)
+
         nearby_pokemon += len(cell.get('nearby_pokemons', []))
         # Parse everything for stats (counts).  Future enhancement -- we don't
         # necessarily need to know *how many* forts/wild/nearby were found but
@@ -1802,13 +1804,14 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
         # if a scan was actually bad.
         if config['parse_pokemon']:
             wild_pokemon += cell.get('wild_pokemons', [])
-        else:
-            wild_pokemon_count += len(cell.get('wild_pokemons', []))
 
         if config['parse_pokestops'] or config['parse_gyms']:
             forts += cell.get('forts', [])
-        else:
-            forts_count += len(cell.get('forts', []))
+
+        # Update count regardless of Pokémon parsing or not, we need the count.
+        # Length is O(1).
+        wild_pokemon_count += len(cell.get('wild_pokemons', []))
+        forts_count += len(cell.get('forts', []))
 
     now_secs = date_secs(now_date)
     if wild_pokemon:
@@ -1970,7 +1973,8 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                 'move_2': None,
                 'height': None,
                 'weight': None,
-                'gender': None
+                'gender': None,
+                'form': None
             }
 
             if (encounter_result is not None and 'wild_pokemon'
@@ -1988,8 +1992,13 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                     'move_2': pokemon_info['move_2'],
                     'height': pokemon_info['height_m'],
                     'weight': pokemon_info['weight_kg'],
-                    'gender': pokemon_info['pokemon_display']['gender'],
+                    'gender': pokemon_info['pokemon_display']['gender']
                 })
+
+                # Check for Unown's alphabetic character.
+                if pokemon_info['pokemon_id'] == 201:
+                    pokemon[p['encounter_id']]['form'] = pokemon_info[
+                        'pokemon_display'].get('form', None)
 
             if args.webhooks:
                 pokemon_id = p['pokemon_data']['pokemon_id']
@@ -1999,7 +2008,7 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                     wh_poke = pokemon[p['encounter_id']].copy()
                     wh_poke.update({
                         'disappear_time': calendar.timegm(
-                                          disappear_time.timetuple()),
+                            disappear_time.timetuple()),
                         'last_modified_time': p['last_modified_timestamp_ms'],
                         'time_until_hidden_ms': p['time_till_hidden_ms'],
                         'verified': SpawnPoint.tth_found(sp),
@@ -2007,10 +2016,8 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                         'spawn_start': start_end[0],
                         'spawn_end': start_end[1],
                         'player_level': level
-                        })
+                    })
                     wh_update_queue.put(('pokemon', wh_poke))
-        # Helping out the GC.
-        del wild_pokemon
 
     if forts and (config['parse_pokestops'] or config['parse_gyms']):
         if config['parse_pokestops']:
@@ -2491,9 +2498,13 @@ def create_tables(db):
               SpawnPoint, ScanSpawnPoint, SpawnpointDetectionData,
               Token, LocationAltitude]
     for table in tables:
-        log.info("Creating table: %s", table.__name__)
-        db.create_tables([table], safe=True)
-        db.close()
+        if not table.table_exists():
+            log.info('Creating table: %s', table.__name__)
+            db.create_tables([table], safe=True)
+        else:
+            log.debug('Skipping table %s, it already exists.', table.__name__)
+
+    db.close()
 
 
 def drop_tables(db):
@@ -2505,8 +2516,10 @@ def drop_tables(db):
     db.connect()
     db.execute_sql('SET FOREIGN_KEY_CHECKS=0;')
     for table in tables:
-        log.info("Dropping table: %s", table.__name__)
-        db.drop_tables([table], safe=True)
+        if table.table_exists():
+            log.info('Dropping table: %s', table.__name__)
+            db.drop_tables([table], safe=True)
+
     db.execute_sql('SET FOREIGN_KEY_CHECKS=1;')
     db.close()
 
@@ -2738,4 +2751,12 @@ def database_migrate(db, old_ver):
             migrate(
                 migrator.add_index('pokestop', ('last_updated',), False)
             )
-        log.info('Schema upgrade complete.')
+
+    if old_ver < 17:
+        migrate(
+            migrator.add_column('pokemon', 'form',
+                                SmallIntegerField(null=True))
+        )
+
+    # Always log that we're done.
+    log.info('Schema upgrade complete.')
