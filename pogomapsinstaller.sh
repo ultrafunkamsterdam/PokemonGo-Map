@@ -10,7 +10,7 @@
 #    
 #   This script is meant to be run stand-alone! You do NOT need to clone this repo first. You can download just this file and execute it.
 #   You should download the raw file and not the url of the current page!!! 
-#   download: https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/develop/pogomapsinstaller.sh
+#   download: https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/updateRM/pogomapsinstaller.sh
 #   You can specify what PokemonGo-Maps Repository you want below this block. 
 #   Added awesome new sprites, much better then those ugly default sprites. Check them out at https://pokemaplive.nl or here
 #   https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/flat-icons/static/flat-sh-tr-icons-large-sprite.png
@@ -20,7 +20,7 @@
 
   
   REPOURL="https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2"  ## or https://github.com/RocketMap/RocketMap
-  BRANCH="0.61.0"  ## choose life choose a job choose a career choose a family, choose branch!  (for rocketmap set to "develop")
+  BRANCH="updateRM"  ## choose life choose a job choose a career choose a family, choose branch!  (for rocketmap set to "develop")
   PID=$$
  
   THISPATH=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
@@ -76,14 +76,15 @@
     Logger "Path to this script (full) : $BASE_DIR/$0"
     Logger "Parent folder : ${0%/*}"
     Logger "My name : ${0##*/}"
-    Logger title " Usage "
-    Logger "$0 [arg1] [arg2] (if applicable)"
+    Logger title "USAGE"
+    Logger "Make sure you install it in your home drive so you do not need sudo, just for convenience and easy-ness"
+    Logger "$0"
   }
  
   StopSelf()
   {
     Logger info "Thank you for using $PRETTYNAME" && SL 2
-    kill -9 $PID
+    kill -9 $$
     exit 1
   }
  
@@ -92,7 +93,7 @@
     distro=$(lsb_release -ds 2>/dev/null || cat /etc/*release 2>/dev/null | head -n1 || uname -om)
     which yum &>/dev/null && install="sudo yum -y install " && remove="sudo yum -y remove "
     which zyppe &>/dev/null && install="sudo zypper -n install " && remove="sudo zypper -y remove "
-    which apt-get &>/dev/null && install="sudo apt-get -y install " && remove="sudo apt-get -y purge "
+    which apt-get &>/dev/null && install="sudo apt-get -y install " && remove="sudo apt-get -y remove --purge "
    
     return 0
   }
@@ -155,8 +156,9 @@
         Logger success "NodeJS is is currently installed";
     else
         Logger info "Updating NodeJS .. "
-        #curl -sL https://deb.nodesource.com/setup_7.x | sudo -E bash -
-        curl -sL https://deb.nodesource.com/setup_6.x >/dev/null | sudo -E bash - >/dev/null
+        curl -sL https://deb.nodesource.com/setup_7.x | sudo -E bash -
+        sudo apt-get install -y nodejs
+        #curl -sL https://deb.nodesource.com/setup_6.x >/dev/null | sudo -E bash - >/dev/null
         ReqMan install nodejs
     fi
    
@@ -171,20 +173,21 @@
     git submodule init && git submodule update ; SL 2
     pip install -r requirements.txt
     ReqMan check unzip wget
-    wget https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/raw/develop/static.zip
-    unzip -o static.zip
-    wget -P static/ https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/flat-icons/static/flat-sh-tr-icons-large-sprite.png 
-    if [ $? -ge 1 ]; then
-    echo -e "Unzipping failed! Exiting script now ... " ; SL 2 ; exit -1
-    else
-     echo -e "Unzipping completed successfully, proceeding to build static assets .. " && SL 2
-    fi
+    #wget https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/raw/develop/static.zip
+    #unzip -o static.zip
+    #wget -P static/ https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/flat-icons/static/flat-sh-tr-icons-large-sprite.png 
+    #if [ $? -ge 1 ]; then
+    #echo -e "Unzipping failed! Exiting script now ... " ; SL 2 ; exit -1
+    #else
+    # echo -e "Unzipping completed successfully, proceeding to build static assets .. " && SL 2
+    #fi
     [[ ! -z $MAPSNAME ]] && sed -i "s|Rocket Map|$MAPSNAME|g" templates/* static/*
-    rm -f static.zip
+    rm -f static.zip &>/dev/null
+    rm -f static01.zip &>/dev/null
     npm install && SL 2
     deactivate
     clear
   }
- 
+
    
 Init && Main && StopSelf
