@@ -20,7 +20,7 @@
 
   
   REPOURL="https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2"  ## or https://github.com/RocketMap/RocketMap
-  BRANCH="updateRM"  ## choose life choose a job choose a career choose a family, choose branch!  (for rocketmap set to "develop")
+  BRANCH="develop"  ## choose life choose a job choose a career choose a family, choose branch!  (for rocketmap set to "develop")
   PID=$$
  
   THISPATH=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
@@ -173,14 +173,13 @@
     git submodule init && git submodule update ; SL 2
     pip install -r requirements.txt
     ReqMan check unzip wget
-    #wget https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/raw/develop/static.zip
-    #unzip -o static.zip
-    #wget -P static/ https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/flat-icons/static/flat-sh-tr-icons-large-sprite.png 
-    #if [ $? -ge 1 ]; then
-    #echo -e "Unzipping failed! Exiting script now ... " ; SL 2 ; exit -1
-    #else
-    # echo -e "Unzipping completed successfully, proceeding to build static assets .. " && SL 2
-    #fi
+    wget https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/raw/develop/static.zip
+    unzip -o static.zip
+    if [ $? -ge 1 ]; then
+    echo -e "Unzipping failed! Exiting script now ... " ; SL 2 ; exit -1
+    else
+    echo -e "Unzipping completed successfully, proceeding to build static assets .. " && SL 2
+    fi
     [[ ! -z $MAPSNAME ]] && sed -i "s|Rocket Map|$MAPSNAME|g" templates/* static/*
     rm -f static.zip &>/dev/null
     rm -f static01.zip &>/dev/null
