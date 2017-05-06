@@ -59,5 +59,5 @@ RocketMap gives you a live visualization map of nearby Pokémon, Pokéstops, and
     :maxdepth: 1
     :caption: Advanced Installation
     :glob:
-
+..
     advanced-install/*
