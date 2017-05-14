@@ -20,7 +20,7 @@
 
   
   REPOURL="https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2"  ## or https://github.com/RocketMap/RocketMap
-  BRANCH="0.61.0"  ## choose life choose a job choose a career choose a family, choose branch!  (for rocketmap set to "develop")
+  BRANCH="0.63.1"  ## choose life choose a job choose a career choose a family, choose branch!  (for rocketmap set to "develop")
   PID=$$
  
   THISPATH=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
