@@ -10,16 +10,16 @@
 #    
 #   This script is meant to be run stand-alone! You do NOT need to clone this repo first. You can download just this file and execute it.
 #   You should download the raw file and not the url of the current page!!! 
-#   download: https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/updateRM/pogomapsinstaller.sh
+#   download: https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map/master/pogomapsinstaller.sh
 #   You can specify what PokemonGo-Maps Repository you want below this block. 
 #   Added awesome new sprites, much better then those ugly default sprites. Check them out at https://pokemaplive.nl or here
-#   https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map-V2/flat-icons/static/flat-sh-tr-icons-large-sprite.png
+#   https://raw.githubusercontent.com/ultrafunkamsterdam/PokemonGo-Map/flat-icons/static/flat-sh-tr-icons-large-sprite.png
 #   The icons will be added by default, and if you do not want to use them, you should modify static/map.common.js and set :
 #   var flaticons = false;    default (true)
 # 
 
   
-  REPOURL="https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2"  ## or https://github.com/RocketMap/RocketMap
+  REPOURL="https://github.com/ultrafunkamsterdam/PokemonGo-Map"  ## or https://github.com/RocketMap/RocketMap
   BRANCH="master"  ## choose life choose a job choose a career choose a family, choose branch!  (for rocketmap set to "develop")
   PID=$$
  
@@ -173,8 +173,8 @@
     git submodule init && git submodule update ; SL 2
     pip install -r requirements.txt
     ReqMan check unzip wget
-    wget https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/raw/develop/static.zip
-    wget https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/raw/develop/staticicons.zip
+    wget https://github.com/ultrafunkamsterdam/PokemonGo-Map/raw/develop/static.zip
+    wget https://github.com/ultrafunkamsterdam/PokemonGo-Map/raw/develop/staticicons.zip
     unzip -o static.zip
     unzip -o staticicons.zip
     if [ $? -ge 1 ]; then
