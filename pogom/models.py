@@ -30,6 +30,7 @@ from .utils import (get_pokemon_name, get_pokemon_rarity, get_pokemon_types,
                     get_args, cellid, in_radius, date_secs, clock_between,
                     get_move_name, get_move_damage, get_move_energy,
                     get_move_type, clear_dict_response, calc_pokemon_level)
+
 from .transform import transform_from_wgs_to_gcj, get_new_coords
 from .customLog import printPokemon
 
@@ -1982,7 +1983,7 @@ def parse_map(args, map_dict, step_location, db_update_queue, wh_update_queue,
                     # Make new API for this account if we're not using an
                     # API that's already logged in.
                     if not hlvl_api:
-                        hlvl_api = setup_api(args, status)
+                        hlvl_api = setup_api(args, status, account)
 
                         # Hashing key.
                         # TODO: all of this should be handled properly... all
