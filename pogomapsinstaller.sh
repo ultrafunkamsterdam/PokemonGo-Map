@@ -20,7 +20,7 @@
 
   
   REPOURL="https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2"  ## or https://github.com/RocketMap/RocketMap
-  BRANCH="develop"  ## choose life choose a job choose a career choose a family, choose branch!  (for rocketmap set to "develop")
+  BRANCH="0.63.1"  ## choose life choose a job choose a career choose a family, choose branch!  (for rocketmap set to "develop")
   PID=$$
  
   THISPATH=$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )
@@ -174,7 +174,9 @@
     pip install -r requirements.txt
     ReqMan check unzip wget
     wget https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/raw/develop/static.zip
+    wget https://github.com/ultrafunkamsterdam/PokemonGo-Map-V2/raw/develop/staticicons.zip
     unzip -o static.zip
+    unzip -o staticicons.zip
     if [ $? -ge 1 ]; then
     echo -e "Unzipping failed! Exiting script now ... " ; SL 2 ; exit -1
     else
